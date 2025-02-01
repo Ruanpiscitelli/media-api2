@@ -48,6 +48,22 @@ mkdir -p $WORKSPACE/{logs,media,cache,models,config,temp} \
         $WORKSPACE/models/{lora,checkpoints,vae} \
         $WORKSPACE/media/{audio,images,video}
 
+# Criar diretórios necessários para a web
+mkdir -p $API_DIR/src/web/{templates,static/css,utils}
+
+# Verificar arquivos críticos
+for file in \
+    "src/main.py" \
+    "src/web/routes.py" \
+    "src/web/templates/base.html" \
+    "requirements.txt" \
+    "requirements/vast.txt"; do
+    if [ ! -f "$API_DIR/$file" ]; then
+        echo "❌ Arquivo crítico não encontrado: $file"
+        exit 1
+    fi
+done
+
 echo -e "${BLUE}3. Configurando Redis...${NC}"
 cat > /etc/redis/redis.conf << EOF
 bind 127.0.0.1
@@ -85,6 +101,14 @@ echo "Instalando dependências do ComfyUI..."
 cd $COMFY_DIR
 pip install -r requirements.txt
 
+# Iniciar ComfyUI em background
+echo "Iniciando ComfyUI..."
+nohup python main.py \
+    --listen 0.0.0.0 \
+    --port $COMFY_PORT \
+    --disable-auto-launch \
+    > /workspace/logs/comfyui.log 2>&1 &
+
 # Depois as outras dependências
 echo "Instalando dependências da API..."
 cd $API_DIR
@@ -95,14 +119,50 @@ pip install -r $API_DIR/requirements.txt
 python -c "import torch; print(f'PyTorch instalado: {torch.__version__}')"
 python -c "import fastapi; print(f'FastAPI instalado: {fastapi.__version__}')"
 
+# Verificar todas as dependências críticas
+echo "Verificando dependências críticas..."
+python << EOF
+import sys
+try:
+    import torch
+    import fastapi
+    import redis
+    import uvicorn
+    import PIL
+    print("✅ Todas as dependências críticas estão instaladas")
+except ImportError as e:
+    print(f"❌ Erro ao importar dependências: {e}")
+    sys.exit(1)
+EOF
+
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR
 
 # Garantir que nenhuma instância antiga esteja rodando
 pkill -f "uvicorn" || true
+pkill -f "python main.py" || true
+
+# Limpar arquivos temporários
+rm -f /workspace/logs/api.log
 
 # Iniciar API com log mais detalhado
-nohup uvicorn src.main:app --host 0.0.0.0 --port $API_PORT --workers $(nproc) > $WORKSPACE/logs/api.log 2>&1 &
+echo "Iniciando API com um worker..."
+export PYTHONPATH=$API_DIR:$PYTHONPATH
+export LOG_LEVEL=debug
+
+nohup uvicorn src.main:app \
+    --host 0.0.0.0 \
+    --port $API_PORT \
+    --workers 1 \
+    --log-level debug \
+    --reload \
+    --reload-dir src \
+    > /workspace/logs/api.log 2>&1 &
+API_PID=$!
+
+# Log do processo
+echo "PID da API: $API_PID"
+ps -p $API_PID -o pid,ppid,cmd
 
 # Aguardar API iniciar (com timeout)
 echo "Aguardando API iniciar..."
@@ -110,8 +170,16 @@ MAX_TRIES=30
 COUNT=0
 while ! curl -s http://localhost:$API_PORT/health > /dev/null && [ $COUNT -lt $MAX_TRIES ]; do
     echo "Tentativa $((COUNT+1)) de $MAX_TRIES..."
+    if ! ps -p $API_PID > /dev/null; then
+        echo "Processo da API morreu! Verificando logs:"
+        tail -n 50 /workspace/logs/api.log
+        exit 1
+    fi
     sleep 2
     COUNT=$((COUNT+1))
+
+    # Mostrar logs em tempo real
+    tail -n 5 /workspace/logs/api.log
 done
 
 if [ $COUNT -eq $MAX_TRIES ]; then
@@ -209,4 +277,23 @@ Para usar o token:
 export TOKEN=$(cat /workspace/token.txt)
 EOF
 
-echo -e "${BLUE}Credenciais salvas em: $WORKSPACE/credentials.txt${NC}" 
+echo -e "${BLUE}Credenciais salvas em: $WORKSPACE/credentials.txt${NC}"
+
+# Configurar variáveis de ambiente
+cat > $WORKSPACE/.env << EOF
+NVIDIA_VISIBLE_DEVICES=all
+DATA_DIRECTORY=/workspace
+API_HOST=0.0.0.0
+API_PORT=$API_PORT
+REDIS_HOST=localhost
+REDIS_PORT=$REDIS_PORT
+COMFY_HOST=0.0.0.0
+COMFY_PORT=$COMFY_PORT
+MEDIA_DIR=/workspace/media
+MODELS_DIR=/workspace/models
+EOF
+
+# Carregar variáveis
+set -a
+source $WORKSPACE/.env
+set +a 
