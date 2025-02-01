@@ -23,21 +23,6 @@ CACHE_METRICS: Dict[str, Counter] = {
 
 # API Metrics
 API_METRICS = {
-    'gpu_temperature': Gauge(
-        'gpu_temperature',
-        'GPU temperature in celsius',
-        ['device_id']
-    ),
-    'gpu_utilization': Gauge(
-        'gpu_utilization',
-        'GPU utilization percentage',
-        ['device_id']
-    ),
-    'gpu_memory_used': Gauge(
-        'gpu_memory_used',
-        'GPU memory usage in bytes',
-        ['device_id']
-    ),
     'task_duration': Histogram(
         'task_duration_seconds',
         'Task processing duration in seconds',
