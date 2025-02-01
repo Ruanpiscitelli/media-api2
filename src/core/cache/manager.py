@@ -109,10 +109,13 @@ class RedisCache(BaseCache):
     
     def __init__(self):
         super().__init__("redis")
-        self.redis = aioredis.from_url(
-            f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}",
+        self.redis = aioredis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
             password=settings.REDIS_PASSWORD,
             db=settings.REDIS_DB,
+            socket_timeout=settings.REDIS_TIMEOUT,
+            ssl=settings.REDIS_SSL,
             decode_responses=True
         )
         

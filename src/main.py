@@ -33,6 +33,8 @@ import secrets
 import redis
 from redis.asyncio import Redis
 import redis.asyncio
+from src.core.rate_limit import rate_limiter
+from src.core.config import settings
 
 # Importação dos routers
 from src.api.v2.endpoints import (
@@ -648,6 +650,9 @@ async def startup_event():
     # Iniciar scheduler
     scheduler.start()
     logger.info("Scheduler iniciado")
+
+    # Validar configurações ao iniciar
+    settings.check_config()
 
 if __name__ == "__main__":
     # Configuração para debugging

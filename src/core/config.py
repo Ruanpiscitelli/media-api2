@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_TIMEOUT: int = int(os.getenv("REDIS_TIMEOUT", "5"))  # segundos
+    REDIS_SSL: bool = os.getenv("REDIS_SSL", "false").lower() == "true"
     
     # Limites e Timeouts
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
@@ -44,6 +47,14 @@ class Settings(BaseSettings):
 
     # Adicionar timeout de renderização
     RENDER_TIMEOUT_SECONDS: int = 300  # 5 minutos
+
+    def check_config(self):
+        """Valida configurações essenciais"""
+        if not self.REDIS_PASSWORD:
+            raise ValueError("Senha do Redis não configurada")
+        if self.MAX_CONCURRENT_RENDERS < 1:
+            raise ValueError("MAX_CONCURRENT_RENDERS deve ser maior que 0")
+        # Adicionar outras validações necessárias
 
     class Config:
         env_file = ".env"
