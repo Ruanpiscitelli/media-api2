@@ -23,6 +23,11 @@ from src.core.monitoring.metrics import GPU_METRICS
 # Configuração de logging
 logger = logging.getLogger(__name__)
 
+# Métricas Prometheus
+GPU_MEMORY = Gauge('gpu_memory_usage', 'Uso de memória GPU', ['device'])
+GPU_UTIL = Gauge('gpu_utilization', 'Utilização da GPU', ['device'])
+GPU_TEMP = Gauge('gpu_temperature', 'Temperatura da GPU', ['device'])
+
 @dataclass
 class GPUTask:
     """Representa uma tarefa usando GPU"""
