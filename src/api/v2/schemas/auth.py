@@ -4,23 +4,27 @@ Schemas Pydantic para autenticação e usuários.
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 class TokenResponse(BaseModel):
     """Schema para resposta de token."""
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
     expires_in: int
 
 class UserBase(BaseModel):
     """Schema base para usuário."""
+    username: str = Field(min_length=3, max_length=50)
     email: EmailStr
-    name: str = Field(..., min_length=2, max_length=100)
-    tier: str = Field(default="free", regex="^(free|pro|enterprise)$")
+    is_active: bool = True
+    tier: str = Field(
+        default="free",
+        pattern="^(free|pro|enterprise)$"
+    )
 
 class UserCreate(UserBase):
     """Schema para criação de usuário."""
-    password: str = Field(..., min_length=8)
+    password: str = Field(min_length=8)
     
     @validator('password')
     def validate_password(cls, v):
@@ -35,9 +39,13 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     """Schema para atualização de usuário."""
-    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=8)
+    tier: Optional[str] = Field(
+        None,
+        pattern="^(free|pro|enterprise)$"
+    )
     
     @validator('password')
     def validate_password(cls, v):
@@ -54,12 +62,11 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """Schema para resposta de usuário."""
-    id: str
+    id: int
     created_at: datetime
-    last_login: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserInDB(UserBase):
     """Schema para usuário no banco de dados."""
@@ -75,6 +82,5 @@ class UserInDB(UserBase):
 
 class TokenData(BaseModel):
     """Schema para dados do token JWT."""
-    sub: str
-    tier: str = Field(default="free", regex="^(free|pro|enterprise)$")
-    exp: datetime 
+    username: Optional[str] = None
+    exp: Optional[datetime] = None 
