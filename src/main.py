@@ -653,6 +653,9 @@ async def startup_event():
         logger.error(f"Erro validando GPUs: {e}")
         raise
 
+    if not validate_models():
+        logger.warning("Alguns modelos necessários não foram encontrados")
+
 # Adicionar middleware de conexões
 app.add_middleware(ConnectionMiddleware)
 

@@ -8,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
 import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GPUConfig(BaseSettings):
     """Configurações de GPU"""
@@ -229,11 +232,11 @@ class Settings(BaseSettings):
     
     # Configurações de modelos
     MODELS_DIR: Path = Field(default=Path("/workspace/models"))
-    SDXL_MODEL_PATH: Path = Field(
+    SDXL_MODEL_PATH: Optional[Path] = Field(
         default=None,
         description="Caminho para modelo SDXL"
     )
-    SDXL_VAE_PATH: Path = Field(
+    SDXL_VAE_PATH: Optional[Path] = Field(
         default=None,
         description="Caminho para VAE do SDXL"
     )
@@ -253,7 +256,7 @@ class Settings(BaseSettings):
     )
     
     # Fish Speech
-    FISH_SPEECH_MODEL: Path = Field(
+    FISH_SPEECH_MODEL: Optional[Path] = Field(
         default=None,
         description="Caminho para modelo Fish Speech"
     )
@@ -266,16 +269,14 @@ class Settings(BaseSettings):
         description="Comprimento máximo do texto"
     )
     
-    @validator("SDXL_MODEL_PATH", "SDXL_VAE_PATH")
-    def validate_paths(cls, v):
+    @validator("SDXL_MODEL_PATH", "SDXL_VAE_PATH", "FISH_SPEECH_MODEL")
+    def validate_model_paths(cls, v, values):
+        # Em desenvolvimento, permitir caminhos não existentes
+        if values.get("ENVIRONMENT") == "development":
+            return v
+        # Em produção, validar caminhos
         if not v or not v.exists():
             raise ValueError(f"Arquivo de modelo não encontrado: {v}")
-        return v
-    
-    @validator("FISH_SPEECH_MODEL")
-    def validate_fish_speech_model(cls, v):
-        if not v or not v.exists():
-            raise ValueError(f"Modelo Fish Speech não encontrado: {v}")
         return v
     
     @property
@@ -317,6 +318,20 @@ class Settings(BaseSettings):
         extra="allow",
         use_enum_values=True
     )
+
+def validate_models():
+    """Verifica se os modelos necessários estão presentes"""
+    models_to_check = [
+        (settings.SDXL_MODEL_PATH, "SDXL Base Model"),
+        (settings.SDXL_VAE_PATH, "SDXL VAE"),
+        (settings.FISH_SPEECH_MODEL, "Fish Speech Model")
+    ]
+    
+    for model_path, model_name in models_to_check:
+        if not Path(model_path).exists():
+            logger.warning(f"Modelo {model_name} não encontrado em {model_path}")
+            return False
+    return True
 
 # Instância global de configuração
 settings = Settings()
