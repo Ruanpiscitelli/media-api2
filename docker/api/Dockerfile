@@ -27,6 +27,15 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     gcc \
     libc-dev \
+    net-tools \
+    git-lfs \
+    nodejs \
+    npm \
+    python3-pip \
+    pkg-config \
+    libicu-dev \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && add-apt-repository ppa:savoury1/ffmpeg4 \
     && apt-get update \
     && apt-get install -y \

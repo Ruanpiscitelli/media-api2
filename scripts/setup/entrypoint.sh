@@ -168,6 +168,9 @@ pip install -r "$API_DIR/requirements/vast.txt"
 log "Verificando dependências críticas..."
 python "$API_DIR/scripts/check_models.py"
 
+# Verificar e instalar dependências
+./scripts/setup/check_dependencies.sh
+
 # Iniciar API
 log "Iniciando API..."
 cd "$API_DIR"
