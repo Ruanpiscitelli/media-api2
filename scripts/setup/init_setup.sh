@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
 
 echo "🚀 Iniciando setup automático do Media API..."
@@ -195,7 +195,7 @@ apt-get install -y --allow-change-held-packages libcudnn8=8.9.7.29-1+cuda12.2
 
 # Atualizar variáveis de ambiente
 sed -i 's/cuda-11.8/cuda-12.1/g' /etc/bash.bashrc
-echo '[ -n "$BASH" ] && shopt -s histappend' >> /etc/bash.bashrc
+echo '[ -n "$BASH" ] && shopt -s histappend 2>/dev/null || true' >> /etc/bash.bashrc
 . /etc/bash.bashrc
 
 # Instalar torch primeiro
@@ -544,3 +544,10 @@ fi
 # Atualizar links para CUDA 12.1
 ln -sfn /usr/local/cuda-12.1 /usr/local/cuda
 ln -sfn /usr/local/cuda-12.1/lib64/libcudart.so.12.1 /usr/lib/x86_64-linux-gnu/libcudart.so.12.1
+
+# Adicionar instalação do Bash
+echo -e "${BLUE}Instalando Bash...${NC}"
+apt-get install -y bash
+
+# Modificar a linha problemática
+sed -i 's/\[ -n "\$BASH" \] && shopt -s histappend/[ -n "$BASH" ] \&\& shopt -s histappend 2>\/dev\/null || true/' scripts/setup/init_setup.sh
