@@ -20,3 +20,4 @@ python-slugify
 colorama
 pyyaml
 gradio
+redis-py
