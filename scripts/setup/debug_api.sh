@@ -34,6 +34,12 @@ try:
     from slowapi import Limiter
     from starlette.middleware.sessions import SessionMiddleware
     import itsdangerous
+    import semver
+    from src.comfy.template_manager import TemplateManager
+    import yaml
+    import gradio as gr
+    from colorama import init
+    from slugify import slugify
     print('✅ Importação do app bem sucedida')
 except Exception as e:
     print(f'❌ Erro ao importar: {e}')
@@ -51,4 +57,17 @@ ls -la $WORKSPACE/media-api2/src/
 
 # Verificar configuração
 echo -e "\nConfigurações do ambiente:"
-env | grep -E "PORT|PATH|PYTHON|VIRTUAL_ENV" 
+env | grep -E "PORT|PATH|PYTHON|VIRTUAL_ENV"
+
+# Verificar GPU
+echo -e "\nStatus da GPU:"
+nvidia-smi
+
+# Verificar CUDA
+python -c "
+import torch
+print(f'CUDA disponível: {torch.cuda.is_available()}')
+if torch.cuda.is_available():
+    print(f'Dispositivo: {torch.cuda.get_device_name(0)}')
+    print(f'Memória total: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB')
+" 
