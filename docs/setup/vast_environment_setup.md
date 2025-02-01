@@ -45,11 +45,14 @@ mkdir -p /workspace/{logs,media,cache,models,config,temp} \
 git clone https://github.com/Ruanpiscitelli/media-api2.git /workspace/media-api2
 
 # Ambiente Python
-python3 -m venv /workspace/venv
-source /workspace/venv/bin/activate
+python3 -m venv /workspace/venv_clean
+source /workspace/venv_clean/bin/activate
 
 # Atualizar pip e instalar ferramentas básicas
 pip install --upgrade pip wheel setuptools
+
+# Remover instalações existentes para evitar conflitos
+pip uninstall -y fastapi gradio uvicorn apscheduler
 
 # Dependências CUDA
 pip install -r requirements/vast.txt
@@ -93,7 +96,7 @@ touch /workspace/logs/{api,redis,gpu}.log
 
 # Iniciar API com múltiplos workers
 cd /workspace/media-api2
-source /workspace/venv/bin/activate
+source /workspace/venv_clean/bin/activate
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) \
     --log-level info --log-file /workspace/logs/api.log &
 
@@ -177,7 +180,7 @@ curl -X POST http://localhost:8000/api/v1/image/generate \
 service redis-server restart
 pkill -f uvicorn
 cd /workspace/media-api2 && \
-source /workspace/venv/bin/activate && \
+source /workspace/venv_clean/bin/activate && \
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) &
 
 # Limpar cache
@@ -236,7 +239,7 @@ rm -rf /workspace/cache/*
 # Reiniciar
 service redis-server start
 cd /workspace/media-api2 && \
-source /workspace/venv/bin/activate && \
+source /workspace/venv_clean/bin/activate && \
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) &
 ```
 
@@ -514,7 +517,7 @@ chmod +x /workspace/healthcheck.sh
 ssh root@<ip> -p <porta>
 
 # 2. Ative o ambiente virtual
-source /workspace/venv/bin/activate
+source /workspace/venv_clean/bin/activate
 
 # 3. Verifique se o Redis está rodando
 service redis-server status
@@ -547,7 +550,7 @@ cat > /workspace/restart.sh << 'EOF'
 echo "Iniciando serviços..."
 
 # Ativar ambiente virtual
-source /workspace/venv/bin/activate
+source /workspace/venv_clean/bin/activate
 
 # Iniciar Redis se não estiver rodando
 if ! service redis-server status > /dev/null; then
@@ -619,9 +622,9 @@ Requires=redis-server.service
 Type=simple
 User=root
 WorkingDirectory=/workspace/media-api2
-Environment="PATH=/workspace/venv/bin:$PATH"
-ExecStartPre=/bin/bash -c 'source /workspace/venv/bin/activate'
-ExecStart=/workspace/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc)
+Environment="PATH=/workspace/venv_clean/bin:$PATH"
+ExecStartPre=/bin/bash -c 'source /workspace/venv_clean/bin/activate'
+ExecStart=/workspace/venv_clean/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc)
 Restart=always
 RestartSec=3
 

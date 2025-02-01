@@ -66,4 +66,7 @@ flake8>=6.1.0
 mypy>=1.5.1
 
 # Dependências de cache/queue
-celery>=5.3.4 
+celery>=5.3.4
+
+# Agendamento e tarefas
+APScheduler>=3.10.1 

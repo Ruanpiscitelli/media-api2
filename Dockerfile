@@ -40,7 +40,10 @@ RUN mkdir -p models/{checkpoints,clip,clip_vision,controlnet,ipadapter,loras,ups
 
 # Instalar dependências Python
 WORKDIR /workspace/media-api2
-RUN pip install -r requirements/vast.txt
+RUN python3 -m venv /workspace/venv_clean && \
+    /workspace/venv_clean/bin/pip install --upgrade pip wheel setuptools && \
+    /workspace/venv_clean/bin/pip install -r requirements/vast.txt && \
+    /workspace/venv_clean/bin/pip install -r requirements.txt
 
 WORKDIR /workspace/ComfyUI
 RUN pip install -r requirements.txt || true && \
