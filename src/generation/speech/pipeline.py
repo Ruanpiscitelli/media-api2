@@ -10,11 +10,14 @@ from typing import Dict, Optional
 import torch
 import torchaudio
 from prometheus_client import Summary, Histogram
+from pathlib import Path
+import json
 
 from src.core.config import settings
 from .text_processor import TextProcessor
 from .voice_generator import VoiceGenerator
 from .audio_processor import AudioProcessor
+from .models import FishSpeechModel  # Assumindo que existe este módulo
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +48,10 @@ class SpeechPipeline:
     def __init__(self):
         """Inicializa o pipeline com todos os componentes."""
         self.text_processor = TextProcessor()
-        self.voice_generator = VoiceGenerator(
-            model_path=settings.FISH_SPEECH_MODEL_PATH
+        self.model = self._load_model(
+            model_path=settings.FISH_SPEECH_MODEL_PATH,
+            config_path=settings.FISH_SPEECH_CONFIG_PATH,
+            vocab_path=settings.FISH_SPEECH_VOCAB_PATH
         )
         self.audio_processor = AudioProcessor()
         
@@ -72,7 +77,7 @@ class SpeechPipeline:
             )
             
             # Gera áudio base
-            raw_audio = self.voice_generator.generate_speech(
+            raw_audio = self.model.generate_speech(
                 processed_text,
                 voice_id=request['voice_id'],
                 emotion=request.get('emotion', 'neutral'),
@@ -227,3 +232,58 @@ class SpeechPipeline:
                 }
             }
         }
+
+    def _load_model(self, model_path: str, config_path: str, vocab_path: str):
+        """
+        Carrega o modelo Fish Speech com a configuração especificada.
+        
+        Args:
+            model_path: Caminho para os pesos do modelo
+            config_path: Caminho para o arquivo de configuração
+            vocab_path: Caminho para o vocabulário
+            
+        Returns:
+            Modelo Fish Speech carregado
+            
+        Raises:
+            FileNotFoundError: Se algum dos arquivos necessários não for encontrado
+            RuntimeError: Se houver erro ao carregar o modelo
+        """
+        try:
+            # Verifica se os arquivos existem
+            for path in [model_path, config_path, vocab_path]:
+                if not Path(path).exists():
+                    raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+
+            # Configura o dispositivo (GPU/CPU)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            logger.info(f"Usando dispositivo: {device}")
+
+            # Carrega configuração do modelo
+            with open(config_path) as f:
+                config = json.load(f)
+
+            # Inicializa o modelo Fish Speech
+            model = FishSpeechModel(
+                config=config,
+                vocab_path=vocab_path
+            )
+
+            # Carrega os pesos do modelo
+            checkpoint = torch.load(model_path, map_location=device)
+            model.load_state_dict(checkpoint['model'])
+            
+            # Move modelo para GPU se disponível
+            model = model.to(device)
+            model.eval()  # Coloca em modo de inferência
+
+            logger.info("Modelo Fish Speech carregado com sucesso")
+            return model
+
+        except FileNotFoundError as e:
+            logger.error(f"Erro ao carregar arquivos do modelo: {e}")
+            raise
+
+        except Exception as e:
+            logger.error(f"Erro ao inicializar modelo Fish Speech: {e}")
+            raise RuntimeError(f"Falha ao carregar modelo: {e}")

@@ -36,6 +36,7 @@ async def init_directories():
             settings.MEDIA_DIR,
             settings.CACHE_DIR,
             settings.MODELS_DIR,
+            settings.MODELS_BASE_DIR / "fish_speech",
         ]
         
         for directory in directories:

@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-here"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
+    # Caminhos dos modelos
+    MODELS_BASE_DIR: Path = BASE_DIR / "models"
+    FISH_SPEECH_MODEL_PATH: str = str(MODELS_BASE_DIR / "fish_speech/model.pt")
+    FISH_SPEECH_CONFIG_PATH: str = str(MODELS_BASE_DIR / "fish_speech/config.json")
+    FISH_SPEECH_VOCAB_PATH: str = str(MODELS_BASE_DIR / "fish_speech/vocab.json")
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

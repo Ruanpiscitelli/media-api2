@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     gcc \
     postgresql-client \
+    espeak \
+    espeak-ng \
+    libespeak-ng1 \
     # ... outras dependências ...
 
 # ... resto do Dockerfile ... 
