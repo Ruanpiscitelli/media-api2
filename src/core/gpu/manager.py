@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import torch
 import pynvml
 from prometheus_client import Gauge, start_http_server
+import sys
 
 from src.config.gpu_config import get_gpu_config
 from src.core.cache import Cache
@@ -123,9 +124,17 @@ class GPUManager:
         for gpu in self.gpus:
             gpu_id = gpu['id']
             self.metrics['vram_total'].labels(gpu_id).set(gpu['total_memory'])
-            
-        # Inicia servidor de métricas
-        start_http_server(8001)
+        
+        # Inicia servidor de métricas, encerrando caso a porta 8001 esteja ocupada
+        try:
+            start_http_server(8001)
+            print("Métricas Prometheus iniciadas na porta 8001")
+        except OSError as e:
+            if "Address already in use" in str(e):
+                logger.error("Porta 8001 já está em uso. Encerrando o processo.")
+                sys.exit(1)
+            else:
+                raise
             
     def _start_monitoring(self):
         """Inicia loops de monitoramento"""

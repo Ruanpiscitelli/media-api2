@@ -13,7 +13,7 @@ cleanup() {
     rm -rf /workspace/dcgm-*
 }
 
-# Função para verificar requisitos
+# Função para verificar requisitos do sistema (GPU etc.)
 check_requirements() {
     echo "Verificando requisitos do sistema..."
     
