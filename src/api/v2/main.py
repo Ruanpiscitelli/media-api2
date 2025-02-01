@@ -16,11 +16,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from prometheus_client import make_asgi_app
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 import os
 import time
 
@@ -97,30 +92,24 @@ app.add_middleware(RateLimitMiddleware)
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
-# Instrumentação do FastAPI com OpenTelemetry
-FastAPIInstrumentor.instrument_app(app)
-
 # Evento de startup para iniciar o ComfyUI
 @app.on_event("startup")
 async def startup_event():
     """Inicializa o servidor ComfyUI durante o startup da API"""
-    with tracer.start_as_current_span("comfy_startup") as span:
-        try:
-            await comfy_server.start()
-            await comfy_server.wait_until_ready(timeout=30)
-            logger.info("ComfyUI iniciado com sucesso")
-        except Exception as e:
-            logger.error(f"Falha na inicialização do ComfyUI: {e}")
-            raise RuntimeError("Servidor ComfyUI não inicializado")
+    try:
+        await comfy_server.start()
+        await comfy_server.wait_until_ready(timeout=30)
+        logger.info("ComfyUI iniciado com sucesso")
+    except Exception as e:
+        logger.error(f"Falha na inicialização do ComfyUI: {e}")
+        raise RuntimeError("Servidor ComfyUI não inicializado")
 
 # Evento de shutdown para parar o ComfyUI
 @app.on_event("shutdown")
 async def shutdown_event():
     """Para o servidor ComfyUI durante o shutdown da API"""
-    with tracer.start_as_current_span("comfy_shutdown") as span:
-        span.set_attribute("service.name", "comfy-ui")
-        await comfy_server.stop()
-        logger.info("ComfyUI parado com sucesso")
+    await comfy_server.stop()
+    logger.info("ComfyUI parado com sucesso")
 
 # Handlers de erro
 @app.exception_handler(Exception)
@@ -142,13 +131,11 @@ async def health_check():
     Endpoint de healthcheck que retorna o status da API
     e informações básicas sobre o sistema
     """
-    with tracer.start_as_current_span("health_check") as span:
-        span.set_attribute("service.name", "media-api")
-        return {
-            "status": "healthy",
-            "version": "2.0.0",
-            "environment": os.getenv("ENVIRONMENT", "production")
-        }
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "environment": os.getenv("ENVIRONMENT", "production")
+    }
 
 # Registro dos routers
 app.include_router(images.router, prefix="/v2/images", tags=["images"])

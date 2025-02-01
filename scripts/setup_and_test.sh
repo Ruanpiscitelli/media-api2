@@ -44,9 +44,9 @@ setup_dependencies() {
         # Monitoramento
         "prometheus-client>=0.14.0"
         "slowapi>=0.1.8"
-        "opentelemetry-api>=1.0.0"
-        "opentelemetry-sdk>=1.0.0"
-        "opentelemetry-instrumentation-fastapi==0.41b0"
+        "python-logging-loki>=0.3.1"
+        "statsd>=3.3.0"
+        "sentry-sdk[fastapi]>=1.28.1"
         
         # Processamento de Mídia
         "moviepy>=1.0.3"
