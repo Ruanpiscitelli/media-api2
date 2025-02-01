@@ -71,7 +71,7 @@ fi
 
 # Verificar dependências críticas
 echo -e "\n${BLUE}Verificando dependências Python...${NC}"
-python << EOF
+python << 'EOF'
 import sys
 try:
     import torch
