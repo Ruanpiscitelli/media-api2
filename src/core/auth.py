@@ -4,7 +4,7 @@ Módulo central de autenticação.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+import time
 from typing import Optional
 from src.core.config import settings
 
@@ -18,25 +18,40 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token: Token JWT de autenticação
         
     Returns:
-        dict: Dados do usuário autenticado
+        dict: Dicionário contendo apenas o ID do usuário na chave 'sub'
         
     Raises:
         HTTPException: Se o token for inválido
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Credenciais inválidas",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
+        # Verificar se token não expirou
         payload = jwt.decode(
             token, 
-            settings.JWT_SECRET_KEY, 
-            algorithms=[settings.JWT_ALGORITHM]
+            settings.secret_key,
+            algorithms=[settings.algorithm]
         )
-        username: str = payload.get("sub")
-        if username is None:
+        exp = payload.get("exp")
+        if not exp or float(exp) < time.time():
             raise credentials_exception
-        return {"sub": username}
+            
+        # Verificar se usuário ainda existe/está ativo
+        user_id = payload.get("sub")
+        if not user_id:
+            raise credentials_exception
+            
+        # Verificar se token não está na blacklist
+        redis = await get_redis_client()
+        if await redis.sismember("token_blacklist", token):
+            raise credentials_exception
+            
+        # Retorna apenas o dicionário com a chave 'sub' para manter compatibilidade
+        return {"sub": user_id}
+        
     except JWTError:
         raise credentials_exception 

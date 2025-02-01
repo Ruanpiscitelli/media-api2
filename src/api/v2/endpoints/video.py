@@ -20,6 +20,8 @@ from src.video.templates import TemplateManager
 from src.core.auth import get_current_user
 from src.core.rate_limit import rate_limiter
 from src.services.video import VideoService
+import ffmpeg
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -550,4 +552,48 @@ async def generate_preview(
         return preview
     except Exception as e:
         logger.error(f"Erro gerando preview: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def validate_video(file_path: Path):
+    """Valida vídeo antes do processamento"""
+    try:
+        # Verificar se arquivo existe
+        if not file_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Arquivo não encontrado"
+            )
+            
+        # Verificar formato
+        probe = ffmpeg.probe(str(file_path))
+        if not probe:
+            raise HTTPException(
+                status_code=400,
+                detail="Formato de vídeo inválido"
+            )
+            
+        # Verificar duração
+        duration = float(probe['format']['duration'])
+        if duration > settings.MAX_VIDEO_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Vídeo excede duração máxima de {settings.MAX_VIDEO_LENGTH}s"
+            )
+            
+        # Verificar resolução
+        stream = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+        width = int(stream['width'])
+        height = int(stream['height'])
+        if width * height > 3840 * 2160:  # 4K
+            raise HTTPException(
+                status_code=400,
+                detail="Resolução excede limite máximo (4K)"
+            )
+            
+        return probe
+        
+    except ffmpeg.Error as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro validando vídeo: {str(e)}"
+        ) 

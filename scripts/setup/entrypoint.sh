@@ -108,20 +108,40 @@ if ! redis-server /etc/redis/redis.conf; then
     exit 1
 fi
 
-# Verificar Redis com timeout
+# Verificar Redis com timeout e retry
 echo "Verificando Redis..."
-max_attempts=30
-for ((i=1; i<=max_attempts; i++)); do
-    if redis-cli ping | grep -q "PONG"; then
-        echo "Redis iniciado com sucesso!"
-        break
-    fi
-    if [ $i -eq $max_attempts ]; then
-        echo "Timeout ao aguardar Redis"
+max_redis_attempts=30
+redis_started=false
+
+while [ "$redis_started" = false ]; do
+    for ((i=1; i<=max_redis_attempts; i++)); do
+        if redis-cli -h localhost -p 6379 ping | grep -q "PONG"; then
+            echo "✅ Redis respondendo!"
+            redis_started=true
+            break
+        fi
+        
+        if [ $i -eq $max_redis_attempts ]; then
+            echo "❌ Redis não respondeu após $max_redis_attempts tentativas"
+            echo "Reiniciando Redis..."
+            service redis-server restart
+            echo "Aguardando 10 segundos para reinicialização..."
+            sleep 10
+            break  # Sai do loop interno para tentar novamente
+        fi
+        
+        echo "Tentativa $i de $max_redis_attempts..."
+        sleep 1
+    done
+
+    # Se após 3 ciclos de retry o Redis ainda não responder, falha com erro
+    retry_cycles=$((retry_cycles+1))
+    if [ "$retry_cycles" -ge 3 ] && [ "$redis_started" = false ]; then
+        echo "❌ Erro fatal: Redis não iniciou após 3 tentativas de reinicialização"
+        echo "Logs do Redis:"
+        tail -n 50 /var/log/redis/redis-server.log
         exit 1
     fi
-    echo "Tentativa $i de $max_attempts..."
-    sleep 1
 done
 
 # Configurar ambiente Python
@@ -212,6 +232,9 @@ while [ $retry_count -lt $max_retries ]; do
         --port 8000 \
         --workers 4 \
         --log-level info \
+        --limit-concurrency 1000 \
+        --timeout-keep-alive 65 \
+        --backlog 2048 \
         > /workspace/logs/api.log 2>&1 &
     
     # Guardar PID

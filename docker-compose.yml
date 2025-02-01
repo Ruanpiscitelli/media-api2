@@ -5,15 +5,19 @@ services:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
+    sysctls:
+      - net.core.somaxconn=2048
+      - net.ipv4.ip_local_port_range=1024 65535
+      - net.ipv4.tcp_tw_reuse=1
     ports:
       - "8000:8000"
       - "8188:8188"
       - "8001:8001"
     volumes:
-      - ./models:/app/models
-      - ./custom_nodes:/app/custom_nodes
-      - ./workflows:/app/workflows
-      - ./outputs:/app/outputs
+      - models:/app/models:ro
+      - custom_nodes:/app/custom_nodes:ro
+      - workflows:/app/workflows:ro
+      - outputs:/app/outputs
     environment:
       - CUDA_VISIBLE_DEVICES=0,1,2,3
       - NVIDIA_VISIBLE_DEVICES=all
@@ -43,18 +47,26 @@ services:
       - media_network
 
   redis:
-    image: redis:7.0-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    image: redis:7-alpine
+    command: >
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --no-appendfsync-on-rewrite yes
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
+      --protected-mode yes
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
-      - ./logs/redis:/var/log/redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - media_network
 
@@ -111,4 +123,12 @@ volumes:
 
 networks:
   media_network:
-    driver: bridge 
+    driver: bridge
+
+volumes:
+  models:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/models
+      o: bind 

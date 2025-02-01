@@ -80,7 +80,10 @@ class QueueConfig(BaseSettings):
 
 class SecurityConfig(BaseSettings):
     """Configurações de segurança"""
-    secret_key: str = Field(default="your-secret-key-here")
+    secret_key: str = Field(
+        default=None,
+        description="Chave secreta para JWT"
+    )
     algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=30)
     
@@ -157,6 +160,11 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000)
     workers: int = Field(default=1)
+    MAX_CONNECTIONS: int = Field(default=1000)
+    KEEP_ALIVE: int = Field(default=65)
+    GRACEFUL_SHUTDOWN_TIMEOUT: int = Field(default=60)
+    REQUEST_TIMEOUT: int = Field(default=30)  # timeout padrão
+    LONG_TIMEOUT: int = Field(default=300)    # timeout para operações longas
     
     # Database
     DATABASE_URL: str = "sqlite:///./sql_app.db"
@@ -165,18 +173,25 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     
     # Redis
-    redis_host: str = Field(default="localhost")
-    redis_port: int = Field(default=6379)
-    redis_db: int = Field(default=0)
-    redis_password: Optional[str] = None
-    redis_ssl: bool = Field(default=False)
-    redis_timeout: int = Field(default=5)
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: Optional[str] = None
+    REDIS_SSL: bool = Field(default=False)
+    REDIS_TIMEOUT: int = Field(default=5)
     
     # Rate Limiting
-    rate_limit_per_minute: int = Field(default=60)
+    RATE_LIMIT_DEFAULT: int = Field(default=100)  # requisições por hora
+    RATE_LIMIT_BURST: int = Field(default=10)     # requisições por minuto
+    RATE_LIMIT_ENABLED: bool = Field(default=True)
+    RATE_LIMIT_WINDOW: int = Field(default=3600)  # janela em segundos
+    RATE_LIMIT_MAX: int = Field(default=1000)     # máximo por IP
     
     # Security
-    secret_key: str = Field(default="your-secret-key-here")
+    secret_key: str = Field(
+        default=None,
+        description="Chave secreta para JWT"
+    )
     algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=30)
     backend_cors_origins: List[str] = Field(default=["*"])
@@ -207,10 +222,119 @@ class Settings(BaseSettings):
     paths: PathConfig = Field(default_factory=PathConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
     
+    # Adicionar atributo faltando
+    MEDIA_DIR: Path = Field(default=Path("/workspace/media"))
+    MAX_THREADS: int = Field(default=32)
+    
+    # Configurações de modelos
+    MODELS_DIR: Path = Field(default=Path("/workspace/models"))
+    SDXL_MODEL_PATH: Path = Field(
+        default=None,
+        description="Caminho para modelo SDXL"
+    )
+    SDXL_VAE_PATH: Path = Field(
+        default=None,
+        description="Caminho para VAE do SDXL"
+    )
+    
+    # FFmpeg
+    FFMPEG_BINARY: str = Field(
+        default="ffmpeg",
+        description="Caminho para binário do FFmpeg"
+    )
+    FFMPEG_THREADS: int = Field(
+        default=0,  # 0 = auto
+        description="Número de threads para FFmpeg"
+    )
+    FFMPEG_HWACCEL: str = Field(
+        default="cuda",
+        description="Aceleração de hardware (cuda, nvenc, none)"
+    )
+    
+    # Fish Speech
+    FISH_SPEECH_MODEL: Path = Field(
+        default=None,
+        description="Caminho para modelo Fish Speech"
+    )
+    FISH_SPEECH_SAMPLE_RATE: int = Field(
+        default=22050,
+        description="Sample rate para síntese"
+    )
+    FISH_SPEECH_MAX_LENGTH: int = Field(
+        default=1000,
+        description="Comprimento máximo do texto"
+    )
+    
+    @validator("SDXL_MODEL_PATH", "SDXL_VAE_PATH")
+    def validate_model_paths(cls, v):
+        if not v or not v.exists():
+            raise ValueError(f"Arquivo de modelo não encontrado: {v}")
+        return v
+    
+    @validator("FISH_SPEECH_MODEL")
+    def validate_fish_speech_model(cls, v):
+        if not v or not v.exists():
+            raise ValueError(f"Modelo Fish Speech não encontrado: {v}")
+        return v
+    
+    @property
+    def REDIS_URL(self) -> str:
+        """Gera URL de conexão Redis"""
+        auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
+        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    def check_config(self):
+        """Valida configurações críticas"""
+        # Validar secret key
+        if not self.secret_key:
+            raise ValueError(
+                "SECRET_KEY não configurada. "
+                "Configure via variável de ambiente ou .env"
+            )
+            
+        # Validar ambiente
+        if self.environment not in ['development', 'staging', 'production']:
+            raise ValueError(f"Ambiente inválido: {self.environment}")
+            
+        # Validar timeouts
+        if self.REQUEST_TIMEOUT >= self.LONG_TIMEOUT:
+            raise ValueError("REQUEST_TIMEOUT deve ser menor que LONG_TIMEOUT")
+            
+        # Validar rate limits
+        if self.RATE_LIMIT_BURST > self.RATE_LIMIT_DEFAULT:
+            raise ValueError("BURST limit não pode ser maior que DEFAULT limit")
+        
+        # Validar valores sensíveis
+        sensitive_settings = [
+            'secret_key',
+            'redis_password',
+            'database_url'
+        ]
+        
+        for setting in sensitive_settings:
+            value = getattr(self, setting, None)
+            if value and len(value) < 16:
+                raise ValueError(
+                    f"{setting} muito curto. "
+                    "Use valores com pelo menos 16 caracteres"
+                )
+        
+        # Validar URLs
+        if not self.comfy_api_url.startswith(('http://', 'https://')):
+            raise ValueError("comfy_api_url deve começar com http:// ou https://")
+    
+    @validator("RATE_LIMIT_BURST")
+    def validate_rate_limits(cls, v, values):
+        if v > values["RATE_LIMIT_DEFAULT"]:
+            raise ValueError(
+                "RATE_LIMIT_BURST não pode ser maior que RATE_LIMIT_DEFAULT"
+            )
+        return v
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False,
+        case_sensitive=True,
         extra="allow",
         use_enum_values=True
     )

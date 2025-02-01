@@ -4,8 +4,14 @@ Funções de segurança para autenticação e autorização
 from datetime import datetime, timedelta
 from typing import Optional
 from passlib.context import CryptContext
-from jose import JWTError, jwt
+from jose import JWTError, jwt, jws
 from src.core.config import settings
+from fastapi import HTTPException, Security, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Configuração do contexto de senha
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,12 +41,36 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-def decode_token(token: str) -> dict:
-    """
-    Decodifica e valida um token JWT
-    """
+def verify_jwt(token: str) -> dict:
+    """Verifica e decodifica JWT"""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # Verificar algoritmo explicitamente usando jose
+        header = jws.get_unverified_headers(token)
+        if header['alg'] != settings.ALGORITHM:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token algorithm"
+            )
+            
+        # Decodificar com verificações usando jose
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        # Verificar claims obrigatórias
+        if not all(claim in payload for claim in ['exp', 'iat', 'sub']):
+            raise HTTPException(
+                status_code=401, 
+                detail="Missing required claims"
+            )
+            
         return payload
-    except JWTError:
-        raise ValueError("Token inválido") 
+        
+    except JWTError as e:
+        logger.warning(f"Token inválido: {str(e)}")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token"
+        ) 

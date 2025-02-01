@@ -12,6 +12,8 @@ import torch
 import pynvml
 from prometheus_client import Gauge, start_http_server
 import sys
+import psutil
+import gc
 
 from src.config.gpu_config import get_gpu_config
 from src.core.cache import Cache
@@ -261,9 +263,23 @@ class GPUManager:
         await self.cache.set(cache_key, estimate, ttl=300)
         return estimate
         
-    async def allocate_gpu(self, task_id: str, vram_required: int, priority: int = 0) -> Optional[int]:
-        """Aloca GPU para uma tarefa considerando NVLink e balanceamento"""
+    async def allocate_gpu(self, task_type: str, required_memory: int) -> int:
+        """Aloca GPU para uma tarefa"""
         async with self.lock:
+            # Verificar memória total do sistema
+            system_memory = psutil.virtual_memory()
+            if system_memory.percent > 90:
+                raise InsufficientVRAMError(
+                    required_vram=required_memory,
+                    available_vram=0,
+                    message="Sistema sem memória disponível"
+                )
+            
+            # Limpar cache se necessário
+            if system_memory.percent > 75:
+                torch.cuda.empty_cache()
+                gc.collect()
+            
             # Ordena GPUs por:
             # 1. Número de conexões NVLink
             # 2. Memória livre
@@ -280,22 +296,22 @@ class GPUManager:
             
             for gpu in sorted_gpus:
                 free_memory = gpu['total_memory'] - gpu['used_memory']
-                if free_memory >= vram_required:
-                    gpu['used_memory'] += vram_required
+                if free_memory >= required_memory:
+                    gpu['used_memory'] += required_memory
                     task = GPUTask(
-                        task_id=task_id,
+                        task_id=task_type,
                         gpu_id=gpu['id'],
-                        vram_required=vram_required,
-                        priority=priority,
+                        vram_required=required_memory,
+                        priority=0,
                         start_time=time.time()
                     )
-                    self.tasks[task_id] = task
-                    gpu['tasks'].append(task_id)
-                    logger.info(f"GPU {gpu['id']} alocada para tarefa {task_id}")
+                    self.tasks[task_type] = task
+                    gpu['tasks'].append(task_type)
+                    logger.info(f"GPU {gpu['id']} alocada para tarefa {task_type}")
                     return gpu['id']
                     
             # Se não encontrou GPU livre, tenta preempção
-            return await self._try_preempt_gpu(vram_required, priority)
+            return await self._try_preempt_gpu(required_memory, 0)
             
     async def _calculate_preemption_score(self, task: GPUTask, gpu_id: int) -> float:
         """
@@ -524,6 +540,54 @@ class GPUManager:
             pynvml.nvmlShutdown()
         except:
             pass
+
+    async def get_available_gpu(self, min_vram: int) -> Optional[int]:
+        """Retorna ID da GPU disponível"""
+        try:
+            # Verificar se CUDA está disponível
+            if not torch.cuda.is_available():
+                raise RuntimeError("CUDA não disponível")
+            
+            for gpu_id in range(torch.cuda.device_count()):
+                gpu = torch.cuda.get_device_properties(gpu_id)
+                # Verificar se GPU tem VRAM suficiente
+                if gpu.total_memory < min_vram:
+                    continue
+                return gpu_id
+            return None
+        except Exception as e:
+            logger.error(f"Erro ao obter GPU: {e}")
+            return None
+
+async def validate_gpus():
+    """Valida GPUs disponíveis"""
+    try:
+        # Verificar se CUDA está disponível
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA não disponível")
+            
+        # Verificar versão do PyTorch
+        if not hasattr(torch.version, 'cuda'):
+            raise RuntimeError(
+                "PyTorch não foi compilado com suporte CUDA"
+            )
+            
+        # Verificar GPUs
+        gpu_count = torch.cuda.device_count()
+        if gpu_count == 0:
+            raise RuntimeError("Nenhuma GPU encontrada")
+            
+        # Verificar cada GPU
+        for i in range(gpu_count):
+            props = torch.cuda.get_device_properties(i)
+            logger.info(
+                f"GPU {i}: {props.name}, "
+                f"VRAM: {props.total_memory/1024**3:.1f}GB"
+            )
+            
+    except Exception as e:
+        logger.error(f"Erro validando GPUs: {e}")
+        raise
 
 # Instância global
 gpu_manager = GPUManager() 

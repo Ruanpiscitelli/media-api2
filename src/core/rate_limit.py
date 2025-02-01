@@ -7,9 +7,16 @@ from typing import Optional
 from fastapi import Request, HTTPException
 from redis.asyncio import Redis
 import time
+import logging
 
 from src.core.redis_client import get_redis_client
 from src.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+class RateLimitError(Exception):
+    """Erro específico de rate limit"""
+    pass
 
 class RateLimiter:
     """
@@ -20,13 +27,27 @@ class RateLimiter:
     def __init__(self):
         """Inicializa o rate limiter"""
         self.redis: Optional[Redis] = None
-        self.default_rate_limit = settings.RATE_LIMIT_DEFAULT  # requisições por hora
-        self.default_burst_limit = settings.RATE_LIMIT_BURST   # requisições por minuto
+        self._lock = asyncio.Lock()
+        # Valores default caso não existam nas configurações
+        self.default_rate_limit = getattr(settings, 'RATE_LIMIT_DEFAULT', 100)
+        self.default_burst_limit = getattr(settings, 'RATE_LIMIT_BURST', 10)
         
     async def init(self):
         """Inicializa conexão com Redis"""
-        if not self.redis:
-            self.redis = await get_redis_client()
+        try:
+            # Inicializa conexão Redis se ainda não existir
+            if not self.redis:
+                self.redis = await get_redis_client()
+                
+            # Verificar se Redis está respondendo
+            await self.redis.ping()
+            
+            # Limpar contadores antigos
+            await self.redis.delete("rate_limit:*")
+            
+        except Exception as e:
+            logger.error(f"Erro inicializando rate limiter: {e}")
+            raise RateLimitError(f"Erro inicializando rate limiter: {e}")
             
     async def _get_rate_limit(self, user_id: str) -> int:
         """Obtém limite de requisições para um usuário"""

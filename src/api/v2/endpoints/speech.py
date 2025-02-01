@@ -4,7 +4,7 @@ Endpoints para síntese de voz, incluindo suporte a textos longos e streaming.
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, File, UploadFile, Query, Body, Form
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, constr, HttpUrl
+from pydantic import BaseModel, Field, constr, HttpUrl, validator
 from typing import List, Optional, Dict, Any
 import re
 from src.core.auth import get_current_user
@@ -44,13 +44,29 @@ class SpeechRequest(BaseModel):
         volume: Volume da voz (0 a 2.0)
         language: Código do idioma (ex: pt-BR)
     """
-    text: str = Field(..., description="Texto a ser sintetizado")
-    voice_id: str = Field(..., description="ID da voz")
+    text: str = Field(..., min_length=1, max_length=1000, description="Texto a ser sintetizado")
+    voice_id: str = Field(..., description="ID da voz a ser usada")
     emotion: str = Field("neutral", description="Emoção da fala")
     speed: float = Field(1.0, description="Velocidade", ge=0.5, le=2.0)
     pitch: int = Field(0, description="Ajuste de tom", ge=-20, le=20)
     volume: float = Field(1.0, description="Volume", ge=0, le=2.0)
     language: Optional[str] = Field(None, description="Código do idioma")
+
+    @validator("text")
+    def validate_text(cls, v):
+        # Permitir caracteres Unicode incluindo acentos e pontuação comum
+        v = re.sub(r'[^\p{L}\p{N}\s.,!?¡¿\-\'\"]+', '', v, flags=re.UNICODE)
+        
+        # Verificar comprimento após limpeza
+        if len(v.strip()) < 1:
+            raise ValueError("Texto vazio após limpeza")
+            
+        # Verificar tokens
+        tokens = v.split()
+        if len(tokens) > 200:
+            raise ValueError("Texto muito longo (max 200 palavras)")
+            
+        return v.strip()
 
 class LongSpeechRequest(SpeechRequest):
     chunk_size: int = Field(400, description="Tamanho do chunk em caracteres")

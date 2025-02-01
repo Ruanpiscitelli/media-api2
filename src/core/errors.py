@@ -2,14 +2,18 @@
 Exceções e handlers de erro unificados.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from prometheus_client import Counter
+import logging
+import traceback
 
 # Métricas
 ERROR_COUNTS = Counter('error_count_total', 'Total de erros por tipo', ['type'])
+
+logger = logging.getLogger(__name__)
 
 class BaseError(Exception):
     """Classe base para exceções personalizadas"""
@@ -302,5 +306,36 @@ async def python_exception_handler(
                     "message": str(exc)
                 }
             }
+        }
+    )
+
+async def error_handler(
+    request: Request,
+    exc: Union[Exception, HTTPException]
+) -> JSONResponse:
+    """Handler global de erros"""
+    
+    # Log do erro
+    error_details = {
+        "path": str(request.url),
+        "method": request.method,
+        "error": str(exc),
+        "traceback": traceback.format_exc()
+    }
+    logger.error(f"Error handling request: {error_details}")
+    
+    # Resposta para o cliente
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+        
+    # Erro interno
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error_id": str(request.state.request_id)
         }
     ) 

@@ -5,7 +5,7 @@ Gerencia inicialização, configuração e ciclo de vida da aplicação.
 
 from fastapi import FastAPI, Request, Response, BackgroundTasks, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, UJSONResponse
 from contextlib import asynccontextmanager
 import uvicorn
 import time
@@ -41,6 +41,7 @@ from src.core.initialization import initialize_api
 from src.core.errors import APIError, api_error_handler, validation_error_handler
 from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
 from src.core.redis_client import close_redis_pool
+from src.core.middleware.connection import ConnectionMiddleware
 
 # Importação dos routers
 from src.api.v2.endpoints import (
@@ -233,7 +234,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.DEBUG else None,
     debug=settings.DEBUG,
     # Otimizações de performance
-    default_response_class=JSONResponse,
+    default_response_class=UJSONResponse,
     generate_unique_id_function=None,  # Desativa geração de IDs únicos
     lifespan=lifespan
 )
@@ -271,20 +272,24 @@ async def metrics_middleware(request: Request, call_next):
     
     return response
 
-# Configurar CORS de forma otimizada
+# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=[origin.strip() for origin in settings.backend_cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Range", "Range"],  # Readicionado expose_headers
+    allow_headers=[
+        "Content-Type", 
+        "Authorization",
+        "X-Request-ID"
+    ],
+    expose_headers=["X-Request-ID"],
     max_age=3600,
 )
 
 # Incluir rotas de forma otimizada
 app.include_router(
-    api_v2_router,
+    router,
     prefix=settings.API_V2_STR,
     # Desativar geração de tags automática
     generate_unique_id_function=None
@@ -634,25 +639,36 @@ async def startup_event():
     # Validar configurações ao iniciar
     settings.check_config()
 
+    # Validar configurações críticas
+    if not settings.secret_key or settings.secret_key == "your-secret-key-here":
+        raise ValueError("SECRET_KEY não configurada!")
+        
+    if settings.environment == "production" and settings.debug:
+        raise ValueError("DEBUG não deve estar ativo em produção")
+
+    # Validar GPUs
+    try:
+        await validate_gpus()
+    except RuntimeError as e:
+        logger.error(f"Erro validando GPUs: {e}")
+        raise
+
+# Adicionar middleware de conexões
+app.add_middleware(ConnectionMiddleware)
+
 if __name__ == "__main__":
     import uvicorn
+    
+    # Habilitar AsyncIO debug mode
+    os.environ["PYTHONASYNCIODEBUG"] = "1"
     
     # Configurações otimizadas do uvicorn
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",
         port=8000,
-        workers=4,  # Número de workers baseado em CPUs
+        workers=4,
         loop="uvloop",  # Usar uvloop para melhor performance
-        http="httptools",  # Usar httptools
-        log_level=settings.LOG_LEVEL.lower(),
-        reload=settings.DEBUG,
-        reload_delay=0.25,  # Reduzir delay do reload
-        access_log=settings.DEBUG,  # Desativar access_log em produção
-        proxy_headers=True,
-        forwarded_allow_ips="*",
-        # Otimizações de buffer
-        backlog=2048,
-        limit_concurrency=1000,
-        timeout_keep_alive=5,
+        http="httptools",
+        log_level=settings.LOG_LEVEL.lower()
     ) 

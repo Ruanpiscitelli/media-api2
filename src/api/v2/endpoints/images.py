@@ -14,6 +14,9 @@ import logging
 import os
 from pathlib import Path
 from uuid import uuid4
+import psutil
+import torch
+import gc
 
 router = APIRouter(tags=["images"])
 logger = logging.getLogger(__name__)
@@ -76,6 +79,26 @@ async def generate_image(
         Dict com status da tarefa e ID para acompanhamento
     """
     try:
+        # Verificar se modelo SDXL está disponível
+        model_path = Path("/workspace/models/sdxl/model.safetensors")
+        if not model_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail="Modelo SDXL não encontrado"
+            )
+        
+        # Verificar memória disponível
+        if psutil.virtual_memory().percent > 90:
+            raise HTTPException(
+                status_code=503,
+                detail="Sistema sem recursos disponíveis"
+            )
+        
+        # Limpar cache se necessário
+        if psutil.virtual_memory().percent > 75:
+            torch.cuda.empty_cache()
+            gc.collect()
+        
         # Verifica disponibilidade de GPU
         gpu = await gpu_manager.get_available_gpu(
             min_vram=8000  # Requer 8GB VRAM para SDXL

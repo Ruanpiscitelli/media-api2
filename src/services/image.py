@@ -10,6 +10,8 @@ import uuid
 
 from src.core.config import settings
 from src.core.cache.manager import cache_manager
+from src.comfy.workflow_manager import ComfyWorkflowManager
+from src.core.gpu.manager import gpu_manager
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,8 @@ class ImageService:
         Path("/workspace/cache/images").mkdir(parents=True, exist_ok=True)
         
         logger.info(f"ImageService inicializado no dispositivo: {self.device}")
+        
+        self.workflow_manager = ComfyWorkflowManager()
     
     async def generate(
         self,

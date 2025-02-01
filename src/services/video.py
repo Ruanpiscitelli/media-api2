@@ -349,4 +349,29 @@ class VideoService:
             
         except Exception as e:
             logger.error(f"Erro gerando preview: {e}")
-            raise 
+            raise
+
+    async def validate_ffmpeg_capabilities():
+        """Valida recursos do FFmpeg antes de processar"""
+        try:
+            # Verificar versão mínima
+            version = await get_ffmpeg_version()
+            if version < "4.0":
+                raise RuntimeError(f"FFmpeg versão {version} muito antiga. Mínimo: 4.0")
+            
+            # Verificar aceleração de hardware
+            has_cuda = await check_cuda_support()
+            if not has_cuda:
+                logger.warning("FFmpeg sem suporte a CUDA - processamento será mais lento")
+            
+            # Verificar limites do sistema
+            import resource
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+            if soft < 1024:
+                logger.warning(
+                    f"Limite de arquivos abertos muito baixo: {soft}. "
+                    "Pode causar erros em processamento em lote"
+                )
+            
+        except Exception as e:
+            raise RuntimeError(f"Erro validando FFmpeg: {e}") 

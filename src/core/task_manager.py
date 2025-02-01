@@ -10,8 +10,10 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, Set
 from uuid import UUID, uuid4
 from prometheus_client import Counter, Gauge, Histogram
+import psutil
 
 from src.core.gpu.manager import GPUManager
+from src.core.config import settings
 
 # Configuração de logging
 logger = logging.getLogger(__name__)
@@ -99,6 +101,11 @@ class TaskManager:
         # Inicia workers e cleanup
         self._start_workers()
         self._start_cleanup()
+        
+        self.max_tasks = settings.MAX_CONCURRENT_TASKS
+        self.current_tasks = 0
+        
+        self._task_locks = {}  # Locks por tarefa
         
     def _start_workers(self):
         """Inicia workers para cada fila"""
@@ -210,6 +217,7 @@ class TaskManager:
             task.gpu_id = gpu_id
             task.started_at = datetime.now()
             self.active_tasks[task.id] = task
+            self.current_tasks += 1  # Incrementa contador ao iniciar tarefa
             TASK_METRICS['gpu_memory'].labels(gpu_id=gpu_id).inc(task.memory_required)
             
             if task.id in self.task_events:
@@ -237,6 +245,7 @@ class TaskManager:
         """Limpa recursos de uma tarefa"""
         async with self._lock:
             self.active_tasks.pop(task.id, None)
+            self.current_tasks -= 1  # Decrementa contador ao finalizar tarefa
             if task.gpu_id is not None:
                 TASK_METRICS['gpu_memory'].labels(gpu_id=task.gpu_id).dec(task.memory_required)
                 await self.gpu_manager.release_gpu(task.gpu_id)
@@ -293,6 +302,14 @@ class TaskManager:
             self.task_events[task.id] = asyncio.Event()
             
             try:
+                # Verificar limites globais
+                if len(self.tasks) >= settings.MAX_CONCURRENT_TASKS:
+                    raise TaskError("Limite de tarefas concorrentes atingido")
+                    
+                # Verificar recursos antes de aceitar
+                if not await self.can_accept_task():
+                    raise TaskError("Sistema sobrecarregado")
+                
                 # Adiciona à fila
                 await asyncio.wait_for(
                     self.queues[priority].put(task.id),
@@ -372,6 +389,21 @@ class TaskManager:
                 }
                 for name, queue in self.queues.items()
             }
+
+    async def can_accept_task(self) -> bool:
+        """Verifica se pode aceitar nova tarefa"""
+        async with self._lock:
+            if self.current_tasks >= self.max_tasks:
+                return False
+                
+            # Verificar carga do sistema
+            cpu_percent = psutil.cpu_percent()
+            mem = psutil.virtual_memory()
+            
+            if cpu_percent > 90 or mem.percent > 90:
+                return False
+                
+            return True
 
 # Instância global
 task_manager: Optional[TaskManager] = None 
