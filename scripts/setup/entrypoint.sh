@@ -152,6 +152,9 @@ else
     echo "Dependências dos requirements já instaladas"
 fi
 
+# Adicionar na seção de instalação de dependências
+python3 -m pip install --no-cache-dir aiosqlite
+
 # Criar diretórios do projeto
 mkdir -p /workspace/{logs,media,models} \
         /workspace/media/{audio,images,video}

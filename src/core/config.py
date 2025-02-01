@@ -159,7 +159,10 @@ class Settings(BaseSettings):
     workers: int = Field(default=1)
     
     # Database
-    database_url: str = Field(default="sqlite:///./sql_app.db")
+    DATABASE_URL: str = "sqlite:///./sql_app.db"
+    SQL_DEBUG: bool = False
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
     
     # Redis
     redis_host: str = Field(default="localhost")
