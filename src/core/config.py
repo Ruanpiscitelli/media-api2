@@ -8,6 +8,12 @@ from typing import Optional
 class Settings(BaseSettings):
     """Configurações da API"""
     
+    # Ambiente
+    ENVIRONMENT: str = "development"
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    WORKERS: int = 4
+    
     # Diretórios
     BASE_DIR: Path = Path("/workspace")
     MEDIA_DIR: Path = BASE_DIR / "media"
@@ -15,11 +21,20 @@ class Settings(BaseSettings):
     MODELS_DIR: Path = BASE_DIR / "models"
     ASSETS_DIR: Path = BASE_DIR / "assets"
     TEMP_DIR: Path = BASE_DIR / "temp"
+    LOGS_DIR: Path = BASE_DIR / "logs"
     
     # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
     REDIS_MAX_CONNECTIONS: int = 10
     REDIS_TIMEOUT: int = 5
+    
+    # Modelos
+    SDXL_MODEL_PATH: str = str(MODELS_DIR / "sdxl/sd_xl_base_1.0.safetensors")
+    SDXL_VAE_PATH: str = str(MODELS_DIR / "sdxl/vae/sdxl_vae.safetensors")
+    FISH_SPEECH_MODEL: str = str(MODELS_DIR / "fish_speech/fish_speech_model.pt")
     
     # Limites
     MAX_VIDEO_DURATION: int = 300  # 5 minutos
@@ -36,6 +51,8 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        case_sensitive = False
+        extra = "allow"  # Permite campos extras
 
 # Instância global
 settings = Settings()
@@ -46,6 +63,7 @@ for directory in [
     settings.CACHE_DIR,
     settings.MODELS_DIR,
     settings.ASSETS_DIR,
-    settings.TEMP_DIR
+    settings.TEMP_DIR,
+    settings.LOGS_DIR
 ]:
     directory.mkdir(parents=True, exist_ok=True)
