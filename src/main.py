@@ -61,6 +61,13 @@ scheduler = AsyncIOScheduler()
 # OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+import sys
+from pathlib import Path
+
+# Adiciona o diretório raiz ao PYTHONPATH
+root_dir = Path(__file__).parent.parent
+sys.path.append(str(root_dir))
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação"""
