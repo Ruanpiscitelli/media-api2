@@ -199,12 +199,14 @@ fi
 
 # Adicionar antes da instalação do CUDA
 echo -e "${BLUE}Configurando repositórios NVIDIA...${NC}"
-add-apt-repository -y "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /"
+echo "Configurando repositório CUDA..."
+curl -s -L https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin -o /etc/apt/preferences.d/cuda-repository-pin-600
 apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+add-apt-repository -y "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /"
 apt-get update
 
 # Instalar com prioridade máxima
-apt-get install -y --allow-change-held-packages --priority=500 \
+apt-get install -y --allow-change-held-packages \
     cuda-toolkit-12-1 \
     libcudnn8=8.9.7.29-1+cuda12.2
 
