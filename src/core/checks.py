@@ -7,12 +7,35 @@ import sys
 import logging
 import torch
 import psutil
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pathlib import Path
+import importlib
+import subprocess
 
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_PACKAGES = [
+    ("aiohttp", "aiohttp[speedups]"),
+    ("torch", "torch"),
+    ("psutil", "psutil"),
+    ("fastapi", "fastapi[all]")
+]
+
+def check_and_install_package(package_name: str, install_name: str) -> bool:
+    """Verifica e instala um pacote Python se necessário"""
+    try:
+        importlib.import_module(package_name)
+        return True
+    except ImportError:
+        logger.warning(f"Pacote {package_name} não encontrado. Tentando instalar...")
+        try:
+            subprocess.check_call(["pip", "install", "--no-cache-dir", install_name])
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao instalar {package_name}: {e}")
+            return False
 
 async def check_gpu_requirements() -> Dict[str, bool]:
     """
@@ -126,6 +149,17 @@ async def run_system_checks() -> bool:
     Retorna True se todas as verificações passaram.
     """
     logger.info("Iniciando verificações do sistema...")
+    
+    # Verificar dependências Python
+    missing_packages = []
+    for package_name, install_name in REQUIRED_PACKAGES:
+        if not check_and_install_package(package_name, install_name):
+            missing_packages.append(package_name)
+    
+    if missing_packages:
+        raise RuntimeError(f"Dependências faltando: {', '.join(missing_packages)}")
+    
+    logger.info("Verificações do sistema concluídas com sucesso")
     
     # Executar verificações
     gpu_checks = await check_gpu_requirements()

@@ -59,9 +59,10 @@ safetensors>=0.4.0
 xformers>=0.0.22
 
 # Clientes HTTP
-aiohttp>=3.8.5
+aiohttp>=3.9.1
 httpx>=0.24.1
 websockets>=11.0.3
+aiohttp[speedups]
 
 # Processamento de mídia
 torch>=2.1.0

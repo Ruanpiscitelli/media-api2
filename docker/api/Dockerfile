@@ -18,15 +18,18 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     software-properties-common \
-    && add-apt-repository ppa:savoury1/ffmpeg4 \
-    && apt-get update \
-    && apt-get install -y \
     libx264-dev \
     libx265-dev \
     libvpx-dev \
     libopus-dev \
     libmp3lame-dev \
     libfdk-aac-dev \
+    python3-dev \
+    gcc \
+    libc-dev \
+    && add-apt-repository ppa:savoury1/ffmpeg4 \
+    && apt-get update \
+    && apt-get install -y \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,8 +53,10 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # Instalar dependências Python
 COPY --chown=appuser:appuser requirements/ requirements/
 COPY --chown=appuser:appuser requirements.txt .
+COPY requirements/base.txt /app/requirements/base.txt
 RUN pip install --no-cache-dir -r requirements/vast.txt \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r /app/requirements/base.txt
 
 # Copiar código
 COPY --chown=appuser:appuser . .

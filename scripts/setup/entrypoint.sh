@@ -153,6 +153,16 @@ fi
 # Ativar ambiente virtual
 source "$VENV_DIR/bin/activate"
 
+# Verificar e instalar dependências
+log "Verificando e instalando dependências..."
+pip install --no-cache-dir -r requirements/base.txt
+
+# Verificar instalação do aiohttp
+python3 -c "import aiohttp" || {
+    echo "Instalando aiohttp..."
+    pip install --no-cache-dir aiohttp[speedups]
+}
+
 # Instalar dependências
 log "Instalando dependências..."
 pip install -r "$API_DIR/scripts/setup/requirements.txt"
