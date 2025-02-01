@@ -13,6 +13,8 @@ if settings.ENVIRONMENT == "development":
         SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False}
     )
+    # SQLite não suporta async, então usamos aiosqlite
+    ASYNC_DATABASE_URL = "sqlite+aiosqlite:///./sql_app.db"
 else:
     # PostgreSQL para produção
     SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL.replace(
@@ -26,6 +28,12 @@ else:
         pool_size=settings.DB_POOL_SIZE,
         max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT
+    )
+    # Para PostgreSQL async, usamos asyncpg
+    ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
+        'postgresql://',
+        'postgresql+asyncpg://',
+        1
     )
 
 # Criar sessão
@@ -44,7 +52,7 @@ def get_db():
 
 # Cria engine assíncrono do SQLAlchemy
 async_engine = create_async_engine(
-    settings.DATABASE_URL,
+    ASYNC_DATABASE_URL,
     echo=settings.DB_DEBUG,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
