@@ -33,9 +33,15 @@ echo -e "\n${BLUE}Criando diretórios...${NC}"
 mkdir -p /workspace/outputs/shorts
 mkdir -p /workspace/cache/shorts
 mkdir -p /workspace/uploads/shorts
+mkdir -p /workspace/logs
+mkdir -p /workspace/media
+mkdir -p /workspace/temp
 chown -R $(whoami):$(whoami) /workspace/outputs
 chown -R $(whoami):$(whoami) /workspace/cache
 chown -R $(whoami):$(whoami) /workspace/uploads
+chown -R $(whoami):$(whoami) /workspace/logs
+chown -R $(whoami):$(whoami) /workspace/media
+chown -R $(whoami):$(whoami) /workspace/temp
 echo -e "${GREEN}✅ Diretórios criados${NC}"
 
 if redis-cli ping > /dev/null 2>&1; then
@@ -45,6 +51,12 @@ else
     echo "Iniciando Redis..."
     redis-server /etc/redis/redis.conf --daemonize yes
     sleep 2
+    
+    # Verificar novamente se o Redis iniciou
+    if ! redis-cli ping > /dev/null 2>&1; then
+        echo -e "${RED}❌ Redis falhou ao iniciar${NC}"
+        exit 1
+    fi
 fi
 
 # Ativar ambiente virtual
