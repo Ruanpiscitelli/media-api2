@@ -12,7 +12,7 @@ from pathlib import Path
 import importlib
 import subprocess
 from sqlalchemy import text
-from src.core.db import engine
+from src.core.db import engine, async_engine
 from src.core.redis_client import redis_pool
 
 from src.core.config import settings
@@ -204,12 +204,14 @@ async def check_system():
     return all(checks.values())
 
 async def check_db_connection():
+    """Verifica conexão com o banco de dados"""
     try:
-        async with engine.connect() as conn:
+        async with async_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        return True
+            logger.info("✅ Conexão com banco de dados OK")
+            return True
     except Exception as e:
-        logger.error(f"Erro DB: {e}")
+        logger.error(f"❌ Erro na conexão com banco de dados: {e}")
         return False
 
 async def check_redis_connection():

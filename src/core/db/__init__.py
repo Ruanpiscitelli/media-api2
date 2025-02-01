@@ -1,8 +1,12 @@
 """
 Inicialização do banco de dados e exportação das dependências
 """
-from .models import User
-from .database import get_db, Base, engine
+from .database import engine, async_engine, Base, get_db
 
-# Exporta engine para ser importado de src.core.db
-__all__ = ['engine'] 
+# Exporta as dependências necessárias
+__all__ = [
+    'engine',
+    'async_engine', 
+    'Base',
+    'get_db'
+] 
