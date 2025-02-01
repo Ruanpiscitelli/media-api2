@@ -80,6 +80,7 @@ echo "Criando estrutura de diretórios..."
 mkdir -p $API_DIR/src/{api/{v1,v2},core,services,web,utils}
 mkdir -p $API_DIR/src/core/cache
 mkdir -p $API_DIR/src/generation/suno
+mkdir -p $API_DIR/src/generation/video/fast_huayuan
 mkdir -p $API_DIR/src/utils
 
 # Criar __init__.py em todos os diretórios Python
@@ -543,38 +544,147 @@ EOF
 # Criar arquivo de gerenciamento de GPU
 touch $API_DIR/src/core/gpu_manager.py
 
-# Criar arquivos necessários
-touch $API_DIR/src/core/queue_manager.py
-touch $API_DIR/src/services/suno.py
-touch $API_DIR/src/core/cache/manager.py
-touch $API_DIR/src/utils/audio.py
-touch $API_DIR/src/generation/suno/{bark_voice,musicgen}.py
-
-# Substituir a chave fixa por uma gerada automaticamente
-JWT_SECRET=$(openssl rand -hex 32)
-sed -i "s/JWT_SECRET_KEY=your-secret-key-here/JWT_SECRET_KEY=$JWT_SECRET/" $WORKSPACE/.env
-
-# Criar arquivo main.py básico se não existir
-if [ ! -f "$API_DIR/src/main.py" ]; then
-    cat > $API_DIR/src/main.py << 'EOF'
+# Criar gerenciador de fila
+cat > $API_DIR/src/core/queue_manager.py << 'EOF'
 """
-Ponto de entrada principal da aplicação FastAPI
+Gerenciador de fila para processamento de tarefas.
 """
-from fastapi import FastAPI
-from src.core.rate_limit import rate_limiter
+from typing import Dict, Any, Optional
+import asyncio
+import logging
+from datetime import datetime
 
-app = FastAPI()
-app.add_middleware(rate_limiter)
+logger = logging.getLogger(__name__)
 
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
+class QueueManager:
+    def __init__(self):
+        self.tasks: Dict[str, Dict[str, Any]] = {}
+        self.queue = asyncio.Queue()
+        self.processing = False
+    
+    async def add_task(self, task_id: str, task_data: Dict[str, Any]):
+        """Adiciona uma tarefa à fila."""
+        self.tasks[task_id] = {
+            "status": "queued",
+            "data": task_data,
+            "created_at": datetime.utcnow(),
+            "started_at": None,
+            "completed_at": None,
+            "result": None,
+            "error": None
+        }
+        await self.queue.put(task_id)
+        logger.info(f"Tarefa {task_id} adicionada à fila")
+    
+    async def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Retorna o status de uma tarefa."""
+        return self.tasks.get(task_id)
+    
+    async def process_queue(self):
+        """Processa tarefas da fila."""
+        if self.processing:
+            return
+        
+        self.processing = True
+        try:
+            while True:
+                task_id = await self.queue.get()
+                task = self.tasks[task_id]
+                
+                try:
+                    task["status"] = "processing"
+                    task["started_at"] = datetime.utcnow()
+                    
+                    # Processamento real será implementado pelos serviços
+                    logger.info(f"Processando tarefa {task_id}")
+                    
+                    task["status"] = "completed"
+                    task["completed_at"] = datetime.utcnow()
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao processar tarefa {task_id}: {e}")
+                    task["status"] = "failed"
+                    task["error"] = str(e)
+                    task["completed_at"] = datetime.utcnow()
+                
+                finally:
+                    self.queue.task_done()
+                    
+        except Exception as e:
+            logger.error(f"Erro no processamento da fila: {e}")
+        finally:
+            self.processing = False
+
+# Instância global
+queue_manager = QueueManager()
 EOF
-fi
 
-# Atualizar links para CUDA 12.1
-ln -sfn /usr/local/cuda-12.1 /usr/local/cuda
-ln -sfn /usr/local/cuda-12.1/lib64/libcudart.so.12.1 /usr/lib/x86_64-linux-gnu/libcudart.so.12.1
+# Criar módulo de processamento de áudio
+cat > $API_DIR/src/utils/audio.py << 'EOF'
+"""
+Utilitários para processamento de áudio.
+"""
+import logging
+from pathlib import Path
+from typing import Optional
+import torch
+import torchaudio
+
+logger = logging.getLogger(__name__)
+
+class AudioProcessor:
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"AudioProcessor inicializado no dispositivo: {self.device}")
+    
+    async def process_audio(
+        self,
+        input_path: Path,
+        output_path: Path,
+        sample_rate: int = 44100,
+        normalize: bool = True
+    ) -> Optional[Path]:
+        """
+        Processa um arquivo de áudio.
+        
+        Args:
+            input_path: Caminho do arquivo de entrada
+            output_path: Caminho do arquivo de saída
+            sample_rate: Taxa de amostragem desejada
+            normalize: Se deve normalizar o áudio
+            
+        Returns:
+            Path do arquivo processado ou None se falhar
+        """
+        try:
+            # Carregar áudio
+            waveform, sr = torchaudio.load(input_path)
+            
+            # Converter para mono se necessário
+            if waveform.shape[0] > 1:
+                waveform = torch.mean(waveform, dim=0, keepdim=True)
+            
+            # Resample se necessário
+            if sr != sample_rate:
+                resampler = torchaudio.transforms.Resample(sr, sample_rate)
+                waveform = resampler(waveform)
+            
+            # Normalizar se solicitado
+            if normalize:
+                waveform = waveform / torch.max(torch.abs(waveform))
+            
+            # Salvar
+            torchaudio.save(output_path, waveform, sample_rate)
+            
+            return output_path
+            
+        except Exception as e:
+            logger.error(f"Erro ao processar áudio: {e}")
+            return None
+
+# Instância global
+audio_processor = AudioProcessor()
+EOF
 
 # Criar arquivo de autenticação
 cat > $API_DIR/src/core/auth.py << 'EOF'
@@ -611,4 +721,87 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         return {"sub": username}
     except JWTError:
         raise credentials_exception
+EOF
+
+# Criar módulo FastHuayuan
+cat > $API_DIR/src/generation/video/fast_huayuan/__init__.py << 'EOF'
+"""
+Módulo para geração de vídeos usando FastHuayuan.
+"""
+from typing import Optional, Dict, Any
+import torch
+import logging
+
+logger = logging.getLogger(__name__)
+
+class FastHuayuanGenerator:
+    """Gerador de vídeos usando FastHuayuan."""
+    
+    def __init__(self, model_path: Optional[str] = None):
+        self.model_path = model_path
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = None
+        logger.info(f"FastHuayuan inicializado no dispositivo: {self.device}")
+    
+    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """
+        Gera um vídeo a partir do prompt.
+        
+        Args:
+            prompt: Descrição do vídeo a ser gerado
+            **kwargs: Parâmetros adicionais
+            
+        Returns:
+            Dict com informações do vídeo gerado
+        """
+        try:
+            # TODO: Implementar geração real
+            return {
+                "status": "success",
+                "message": "Geração simulada - implementação pendente"
+            }
+        except Exception as e:
+            logger.error(f"Erro na geração: {e}")
+            raise
+EOF
+
+# Criar módulos Suno
+cat > $API_DIR/src/generation/suno/bark_voice.py << 'EOF'
+"""
+Gerador de voz usando Bark.
+"""
+from typing import Optional, Dict, Any
+import torch
+import logging
+
+logger = logging.getLogger(__name__)
+
+class BarkVoiceGenerator:
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"BarkVoice inicializado no dispositivo: {self.device}")
+    
+    async def generate(self, text: str, **kwargs) -> Dict[str, Any]:
+        """Placeholder para geração de voz."""
+        return {"status": "success", "message": "Implementação pendente"}
+EOF
+
+cat > $API_DIR/src/generation/suno/musicgen.py << 'EOF'
+"""
+Gerador de música usando MusicGen.
+"""
+from typing import Optional, Dict, Any
+import torch
+import logging
+
+logger = logging.getLogger(__name__)
+
+class MusicGenerator:
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"MusicGen inicializado no dispositivo: {self.device}")
+    
+    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Placeholder para geração de música."""
+        return {"status": "success", "message": "Implementação pendente"}
 EOF
