@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from src.core.rate_limit import rate_limiter
 import os
 import anyio
-from src.core.cache import cache_manager
+from src.core.cache.manager import cache
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ async def init_redis():
     """Inicializa conexão com Redis"""
     try:
         # Usar o novo sistema de cache
-        await cache_manager.ensure_connection()
+        await cache.connect()
         logger.info("Redis inicializado com sucesso")
         # Retornar a conexão do cache_manager
-        return cache_manager.get_connection()
+        return cache.get_connection()
     except Exception as e:
         logger.error(f"Erro inicializando Redis: {e}")
         raise
@@ -59,35 +59,18 @@ async def init_monitoring():
         logger.error(f"Erro inicializando monitoramento: {e}")
         raise
 
-async def initialize_api(app: FastAPI):
-    """Inicializa componentes da API"""
+async def initialize_api():
+    """Inicializa serviços básicos"""
     try:
-        logger.info("Iniciando inicialização da API...")
+        # Métricas
+        setup_monitoring()
         
-        # Configurar pool de threads
-        limiter = anyio.to_thread.current_default_thread_limiter()
-        limiter.total_tokens = settings.MAX_THREADS  # Definido no config.py
+        # Cache
+        await cache.connect()
         
-        # Inicializar Redis primeiro
-        redis_pool = await init_redis_pool()
-        app.state.redis = redis_pool
-        
-        # Inicializar rate limiter após Redis
-        rate_limiter = RateLimiter()
-        await rate_limiter.init()
-        
-        # Inicializar Fish Speech
-        from src.services.speech import speech_service
-        await speech_service.initialize()
-        
-        # Resto das inicializações...
-        await init_db()
-        await setup_monitoring()
-        
-        logger.info("API inicializada com sucesso")
-        
+        logger.info("✅ API pronta")
     except Exception as e:
-        logger.error(f"Erro na inicialização da API: {e}")
+        logger.error(f"❌ Erro: {e}")
         raise
 
 async def validate_environment():

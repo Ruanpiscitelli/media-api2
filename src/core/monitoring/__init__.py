@@ -1,31 +1,18 @@
-from prometheus_client import Counter, Histogram, start_http_server
+"""Monitoramento básico"""
+from prometheus_client import Counter, Gauge, start_http_server
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Métricas básicas
-REQUEST_COUNT = Counter(
-    'api_requests_total',
-    'Total number of API requests',
-    ['method', 'endpoint', 'status']
-)
+# Métricas mínimas
+REQUESTS = Counter('requests_total', 'Total de requisições')
+ERRORS = Counter('errors_total', 'Total de erros')
+GPU_MEMORY = Gauge('gpu_memory_mb', 'Memória GPU em MB')
 
-REQUEST_LATENCY = Histogram(
-    'api_request_latency_seconds',
-    'Request latency in seconds',
-    ['method', 'endpoint']
-)
-
-async def setup_monitoring(port: int = 9090):
-    """
-    Configura o servidor de métricas Prometheus
-    
-    Args:
-        port: Porta para expor as métricas (default: 9090)
-    """
+def setup_monitoring():
+    """Inicia métricas na porta 8001"""
     try:
-        start_http_server(port)
-        logger.info(f"Servidor de métricas Prometheus iniciado na porta {port}")
+        start_http_server(8001)
+        logger.info("✅ Métricas OK")
     except Exception as e:
-        logger.error(f"Erro ao iniciar servidor de métricas: {e}")
-        raise 
+        logger.error(f"❌ Métricas erro: {e}") 

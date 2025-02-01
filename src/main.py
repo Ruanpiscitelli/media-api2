@@ -23,11 +23,11 @@ from src.comfy.template_manager import TemplateManager
 from src.core.config import settings
 from src.core.rate_limit import rate_limiter
 from src.core.checks import run_system_checks
-from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
+from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY, REQUESTS
 from src.core.monitoring.metrics import API_METRICS
 from src.core.redis_client import close_redis_pool, init_redis_pool
 from src.core.middleware.connection import ConnectionMiddleware
-from src.core.initialization import cache_manager
+from src.core.initialization import initialize_api
 from src.services.image import get_image_service
 from src.services.video import get_video_service
 
@@ -109,9 +109,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 # Configurar aplicação FastAPI
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description="API para processamento de mídia com múltiplas GPUs",
-    version=settings.VERSION,
+    title="Media API",
+    version="2.0.0",
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
@@ -123,10 +122,9 @@ app = FastAPI(
 # Adicionar middlewares
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(ConnectionMiddleware)
@@ -155,9 +153,8 @@ async def rate_limit_middleware(request: Request, call_next):
 # Middleware de métricas
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
-    REQUEST_COUNT.inc()
-    response = await call_next(request)
-    return response
+    REQUEST_COUNT.labels(method=request.method).inc()
+    return await call_next(request)
 
 # Incluir routers com prefixo de versão
 API_V2_PREFIX = "/api/v2"
@@ -197,168 +194,11 @@ async def get_comfy_context():
     finally:
         await comfy.close()
 
+# Startup
 @app.on_event("startup")
-async def startup_event():
-    """Inicializa serviços na startup da API"""
-    try:
-        # Executar verificações do sistema
-        run_system_checks()
-        logger.info("✅ Verificações do sistema concluídas")
-        
-        # Inicializar cache
-        await cache_manager.ensure_connection()
-        logger.info("✅ Cache inicializado")
-        
-        # Inicializar serviços
-        await get_image_service()
-        await get_video_service()
-        logger.info("✅ Serviços inicializados")
-        
-        # Inicializar ComfyUI
-        comfy = await get_comfy_server()
-        if not await comfy.verify_connection():
-            logger.error("❌ Não foi possível conectar ao ComfyUI")
-            raise RuntimeError("ComfyUI não está acessível")
-        logger.info("✅ Conexão com ComfyUI estabelecida")
-        
-    except Exception as e:
-        logger.error(f"❌ Erro na inicialização: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Limpa recursos na finalização da API"""
-    try:
-        comfy = await get_comfy_server()
-        await comfy.close()
-        logger.info("✅ Conexão com ComfyUI fechada")
-    except Exception as e:
-        logger.error(f"❌ Erro no shutdown: {e}")
+async def startup():
+    await initialize_api()
 
 @app.get("/health")
-async def health_check(comfy: ComfyServer = Depends(get_comfy)):
-    """
-    Endpoint para verificar status da API com monitoramento detalhado do sistema.
-    Retorna informações sobre serviços, recursos e métricas.
-    """
-    try:
-        start_time = time.time()
-        health_data = {
-            "status": "healthy",
-            "version": settings.VERSION,
-            "services": {},
-            "resources": {},
-            "metrics": {},
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-        # Verificar ComfyUI
-        try:
-            comfy_status = await comfy.get_status()
-            health_data["services"]["comfy"] = {
-                "status": "ok" if comfy_status.get('ready', False) else "error",
-                "details": comfy_status
-            }
-        except Exception as e:
-            health_data["services"]["comfy"] = {"status": "error", "error": str(e)}
-
-        # Verificar GPUs
-        try:
-            gpu_info = []
-            if torch.cuda.is_available():
-                for i in range(torch.cuda.device_count()):
-                    gpu = torch.cuda.get_device_properties(i)
-                    allocated = torch.cuda.memory_allocated(i)
-                    reserved = torch.cuda.memory_reserved(i)
-                    
-                    gpu_info.append({
-                        "id": i,
-                        "name": gpu.name,
-                        "memory": {
-                            "total": gpu.total_memory,
-                            "allocated": allocated,
-                            "reserved": reserved,
-                            "available": gpu.total_memory - allocated,
-                            "utilization": (allocated / gpu.total_memory) * 100
-                        },
-                        "compute_capability": f"{gpu.major}.{gpu.minor}"
-                    })
-
-            health_data["resources"]["gpu"] = {
-                "available": torch.cuda.is_available(),
-                "count": len(gpu_info),
-                "devices": gpu_info
-            }
-        except Exception as e:
-            health_data["resources"]["gpu"] = {"status": "error", "error": str(e)}
-
-        # Verificar recursos do sistema
-        try:
-            # CPU
-            cpu_info = {
-                "percent": psutil.cpu_percent(interval=1),
-                "count": {
-                    "physical": psutil.cpu_count(logical=False),
-                    "logical": psutil.cpu_count()
-                },
-                "frequency": {
-                    "current": psutil.cpu_freq().current if psutil.cpu_freq() else None,
-                    "min": psutil.cpu_freq().min if psutil.cpu_freq() else None,
-                    "max": psutil.cpu_freq().max if psutil.cpu_freq() else None
-                },
-                "load_average": psutil.getloadavg()
-            }
-            health_data["resources"]["cpu"] = cpu_info
-
-            # Memória
-            memory = psutil.virtual_memory()
-            swap = psutil.swap_memory()
-            health_data["resources"]["memory"] = {
-                "system": {
-                    "total": memory.total / (1024**3),  # GB
-                    "available": memory.available / (1024**3),
-                    "used": memory.used / (1024**3),
-                    "percent": memory.percent
-                },
-                "swap": {
-                    "total": swap.total / (1024**3),
-                    "used": swap.used / (1024**3),
-                    "free": swap.free / (1024**3),
-                    "percent": swap.percent
-                }
-            }
-
-            # Disco
-            disk = psutil.disk_usage('/')
-            health_data["resources"]["disk"] = {
-                "total": disk.total / (1024**3),
-                "used": disk.used / (1024**3),
-                "free": disk.free / (1024**3),
-                "percent": disk.percent
-            }
-        except Exception as e:
-            health_data["resources"]["system"] = {"status": "error", "error": str(e)}
-
-        # Métricas da aplicação
-        health_data["metrics"] = {
-            "response_time": time.time() - start_time,
-            "uptime": time.time() - psutil.Process().create_time()
-        }
-
-        # Verificar status geral
-        if any(
-            service.get("status") == "error" 
-            for service in health_data["services"].values()
-        ):
-            health_data["status"] = "unhealthy"
-            return JSONResponse(status_code=503, content=health_data)
-
-        return health_data
-
-    except Exception as e:
-        logger.error(f"Erro no health check: {e}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+async def health():
+    return {"status": "ok"}
