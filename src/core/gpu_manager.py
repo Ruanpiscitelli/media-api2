@@ -41,6 +41,16 @@ class GPUManager:
         }
         self.cache = Cache()
         
+        # Add default VRAM requirements for different workflow types
+        self.workflow_vram_requirements = {
+            'txt2img': 8.5 * 1024**3,  # 8.5GB
+            'img2img': 9.0 * 1024**3,  # 9GB
+            'inpainting': 9.5 * 1024**3,  # 9.5GB
+            'upscale': 4.0 * 1024**3,  # 4GB
+            'video': 12.0 * 1024**3,  # 12GB
+            'audio': 4.2 * 1024**3,  # 4.2GB
+        }
+        
     def _initialize_gpus(self):
         """Inicializa lista de GPUs disponíveis"""
         if not torch.cuda.is_available():
@@ -189,34 +199,130 @@ class GPUManager:
         await self.cache.set(cache_key, estimate, ttl=300)
         return estimate
 
-    async def check_nvlink_peers(self, gpu_id: int):
-        """Retorna lista de GPUs conectadas via NVLink"""
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+    async def check_nvlink_peers(self, gpu_id: int) -> List[int]:
+        """
+        Retorna lista de GPUs conectadas via NVLink.
+        
+        Args:
+            gpu_id: ID da GPU para verificar conexões NVLink
+            
+        Returns:
+            Lista de IDs das GPUs conectadas via NVLink
+        """
         peers = []
         try:
-            for link in range(6):  # Verificar todos os links NVLink
-                if pynvml.nvmlDeviceGetNvLinkState(handle, link) == pynvml.NVML_FEATURE_ENABLED:
-                    peer_info = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, link)
-                    peers.append(peer_info)
+            handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+            
+            # Verifica cada link NVLink possível
+            for link in range(6):
+                try:
+                    # Verifica se o link está ativo
+                    if pynvml.nvmlDeviceGetNvLinkState(handle, link) == pynvml.NVML_FEATURE_ENABLED:
+                        # Obtém informações do peer conectado
+                        peer_info = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, link)
+                        
+                        # Encontra o ID da GPU correspondente ao PCI info
+                        for i in range(pynvml.nvmlDeviceGetCount()):
+                            peer_handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+                            if pynvml.nvmlDeviceGetPciInfo(peer_handle).busId == peer_info.busId:
+                                if i not in peers and i != gpu_id:
+                                    peers.append(i)
+                                break
+                except pynvml.NVMLError as e:
+                    logger.debug(f"Link {link} não disponível para GPU {gpu_id}: {e}")
+                    continue
+                
         except pynvml.NVMLError as e:
-            logger.error(f"Erro NVLink: {e}")
+            logger.error(f"Erro ao verificar peers NVLink para GPU {gpu_id}: {e}")
+            return []
+        
         return peers
 
-    async def allocate_gpu(self, task: GenerationTask) -> int:
-        """Aloca GPU considerando NVLink e VRAM"""
+    async def estimate_resources(self, workflow: dict) -> dict:
+        """
+        Estima recursos necessários para executar um workflow.
+        
+        Args:
+            workflow: Dicionário do workflow ComfyUI
+            
+        Returns:
+            Dict com recursos estimados:
+                - vram_required: VRAM necessária em bytes
+                - estimated_time: Tempo estimado em segundos
+        """
+        try:
+            # Identificar tipo de workflow baseado nos nós
+            workflow_type = self._identify_workflow_type(workflow)
+            
+            # Obter requisito base de VRAM
+            base_vram = self.workflow_vram_requirements.get(
+                workflow_type, 
+                6.0 * 1024**3  # 6GB default
+            )
+            
+            # Ajustar baseado na complexidade
+            node_count = len(workflow.get('nodes', []))
+            complexity_factor = 1.0 + (node_count / 20)  # +5% por cada 20 nós
+            
+            vram_required = int(base_vram * complexity_factor)
+            
+            # Estimar tempo baseado na complexidade
+            base_time = 10  # 10 segundos base
+            estimated_time = int(base_time * complexity_factor)
+            
+            return {
+                "vram_required": vram_required,
+                "estimated_time": estimated_time,
+                "workflow_type": workflow_type
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro estimando recursos: {e}")
+            # Fallback para estimativas conservadoras
+            return {
+                "vram_required": 8 * 1024**3,  # 8GB
+                "estimated_time": 30,
+                "workflow_type": "unknown"
+            }
+
+    def _identify_workflow_type(self, workflow: dict) -> str:
+        """Identifica o tipo do workflow baseado nos nós presentes"""
+        nodes = workflow.get('nodes', [])
+        node_types = {node.get('class_type', '').lower() for node in nodes}
+        
+        if any('video' in nt for nt in node_types):
+            return 'video'
+        elif any('audio' in nt for nt in node_types):
+            return 'audio'
+        elif any('upscale' in nt for nt in node_types):
+            return 'upscale'
+        elif any('inpaint' in nt for nt in node_types):
+            return 'inpainting'
+        elif any('img2img' in nt for nt in node_types):
+            return 'img2img'
+        elif any('txt2img' in nt for nt in node_types):
+            return 'txt2img'
+        return 'unknown'
+
+    async def allocate_gpu_for_task(self, task: 'GenerationTask') -> int:
+        """
+        Novo método para alocação baseada em task object.
+        Mantém compatibilidade com interface antiga através de delegation.
+        """
         required_vram = await self._predict_vram_usage(task.model_type)
         
         # Prioriza GPUs com NVLink
-        for gpu in sorted(self.gpus, key=lambda x: len(self.check_nvlink_peers(x['id'])), reverse=True):
-            if gpu.free_vram >= required_vram:
-                # Verifica peers NVLink para transferência direta
-                peers = await self.check_nvlink_peers(gpu['id'])
-                if peers and any(self.gpus[p].free_vram >= required_vram for p in peers):
-                    return gpu['id']
-                    
-        # Fallback para alocação normal
-        return super().allocate_gpu(task)
+        for gpu in sorted(self.gpus, 
+                         key=lambda x: len(self.check_nvlink_peers(x['id'])), 
+                         reverse=True):
+            if gpu['total_memory'] - gpu['used_memory'] >= required_vram:
+                return gpu['id']
+                
+        return await self.allocate_gpu(
+            task_id=task.id,
+            vram_required=required_vram,
+            priority=task.priority
+        )
 
 # Instância global do gerenciador
 gpu_manager = GPUManager() 

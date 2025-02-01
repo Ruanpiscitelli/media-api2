@@ -216,10 +216,40 @@ class GPUMonitor:
             pass
 
     def check_nvlink_peers(self, gpu_id: int) -> List[int]:
-        """Retorna lista de GPUs conectadas via NVLink"""
-        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+        """
+        Retorna lista de GPUs conectadas via NVLink.
+        
+        Args:
+            gpu_id: ID da GPU para verificar conexões NVLink
+            
+        Returns:
+            Lista de IDs das GPUs conectadas via NVLink
+        """
+        peers = []
         try:
-            peers = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, 0)
-            return [i for i in range(len(self.gpus)) if i != gpu_id]
-        except pynvml.NVMLError:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+            
+            # Verifica cada link NVLink possível (tipicamente 0-5)
+            for link in range(6):
+                try:
+                    # Verifica se o link está ativo
+                    if pynvml.nvmlDeviceGetNvLinkState(handle, link) == pynvml.NVML_FEATURE_ENABLED:
+                        # Obtém informações do peer conectado
+                        peer_info = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, link)
+                        
+                        # Encontra o ID da GPU correspondente ao PCI info
+                        for i in range(pynvml.nvmlDeviceGetCount()):
+                            peer_handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+                            if pynvml.nvmlDeviceGetPciInfo(peer_handle).busId == peer_info.busId:
+                                if i not in peers and i != gpu_id:
+                                    peers.append(i)
+                                break
+                except pynvml.NVMLError as e:
+                    logger.debug(f"Link {link} não disponível para GPU {gpu_id}: {e}")
+                    continue
+                
+        except pynvml.NVMLError as e:
+            logger.error(f"Erro ao verificar peers NVLink para GPU {gpu_id}: {e}")
             return []
+        
+        return peers

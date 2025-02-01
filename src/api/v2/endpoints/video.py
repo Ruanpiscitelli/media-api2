@@ -140,6 +140,9 @@ class VideoEditRequest(BaseModel):
         },
         429: {
             "description": "Limite de requisições excedido"
+        },
+        503: {
+            "description": "Recursos GPU não disponíveis"
         }
     }
 )
@@ -150,6 +153,18 @@ async def generate_video(
 ):
     """Inicia geração de vídeo."""
     try:
+        # Estimar VRAM necessária baseado nos parâmetros do vídeo
+        required_vram = request.width * request.height * request.num_frames * 4  # Estimativa básica em bytes
+        required_vram = max(required_vram, 4 * 1024 * 1024 * 1024)  # Mínimo 4GB VRAM
+        
+        # Verificar disponibilidade de GPU
+        gpu = await gpu_manager.get_available_gpu(min_vram=required_vram)
+        if not gpu:
+            raise HTTPException(
+                status_code=503,
+                detail="Nenhuma GPU com VRAM suficiente disponível no momento"
+            )
+
         video_service = VideoService()
         result = await video_service.generate(
             prompt=request.prompt,
@@ -160,10 +175,14 @@ async def generate_video(
             height=request.height,
             audio_prompt=request.audio_prompt,
             style_preset=request.style_preset,
-            user_id=current_user.id
+            user_id=current_user.id,
+            gpu_id=gpu.id  # Passa o ID da GPU alocada
         )
         return result
+    except HTTPException as e:
+        raise e
     except Exception as e:
+        logger.error(f"Erro na geração do vídeo: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
@@ -529,7 +548,6 @@ async def generate_preview(
             time
         )
         return preview
-        
     except Exception as e:
         logger.error(f"Erro gerando preview: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 

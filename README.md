@@ -46,31 +46,44 @@ API avançada para geração de mídia com suporte a processamento distribuído 
    - GPU: RTX 4090 (1-4x)
    - RAM: 32GB+
    - Disk: 100GB+
-   - Image: `runpod/stable-diffusion:web-ui-10.2.1-cuda11.7.1`
+   - Image: `nvidia/cuda:11.8.0-devel-ubuntu22.04`
 
 ### 2. Docker Options
-```
--p 8000:8000 -p 8188:8188 -p 6379:6379 -p 8080:8080 Docker Options: --gpus all
+```bash
+-p 8000:8000 \    # API FastAPI
+-p 8080:8080 \    # GUI Streamlit
+-p 6379:6379 \    # Redis
+-p 9090:9090 \    # Prometheus
+-p 3000:3000 \    # Grafana
+--gpus all
 ```
 
 ### 3. Environment Variables
-```
+Crie um arquivo `.env` com as seguintes variáveis:
+```bash
+# Sistema
 NVIDIA_VISIBLE_DEVICES=all
 DATA_DIRECTORY=/workspace
+DEBUG=false
+
+# API
 API_HOST=0.0.0.0
 API_PORT=8000
-DEBUG=false
 WORKERS=4
 TIMEOUT=300
+API_KEY=seu_api_key_aqui
+
+# Segurança
 CORS_ORIGINS=*
 ALLOWED_HOSTS=*
 TRUSTED_HOSTS=*
+
+# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
-COMFY_HOST=0.0.0.0
-COMFY_PORT=8188
-COMFY_WEBSOCKET_PORT=8188
+
+# Diretórios
 MEDIA_DIR=/workspace/media
 TEMP_DIR=/workspace/media/temp
 LOG_DIR=/workspace/logs
@@ -78,46 +91,65 @@ MODELS_DIR=/workspace/models
 CACHE_DIR=/workspace/cache
 ```
 
-### 4. Onstart Script
+### 4. Execução
+
+#### Método 1: Script de Setup
 ```bash
-#!/bin/bash
-exec 3>&1 4>&2
-trap 'exec 2>&4 1>&3' 0 1 2 3
-exec 1>/tmp/setup.log 2>&1
+# Clone o repositório
+git clone https://github.com/Ruanpiscitelli/media-api2.git
+cd media-api2
 
-apt-get update && apt-get install -y git python3-pip redis-server net-tools
-
-mkdir -p /workspace/logs /workspace/media /workspace/cache /workspace/models /workspace/media/temp /workspace/models/lora /workspace/models/checkpoints
-
-if [ ! -d "/workspace/media-api2" ]; then git clone https://github.com/seu-usuario/media-api2.git /workspace/media-api2; fi
-if [ ! -d "/workspace/ComfyUI" ]; then git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI; fi
-
-python3 -m venv /workspace/venv
-source /workspace/venv/bin/activate
-
-pip install --upgrade pip
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install uvicorn fastapi redis python-jose[cryptography] python-multipart
-
-cd /workspace/media-api2 && pip install -r requirements.txt
-cd /workspace/ComfyUI && pip install -r requirements.txt
-
-service redis-server start
-
-cd /workspace/ComfyUI
-nohup python main.py --listen 0.0.0.0 --port 8188 > /workspace/logs/comfyui.log 2>&1 &
-
-sleep 10
-
-cd /workspace/media-api2
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4 > /workspace/logs/api.log 2>&1 &
-
-tail -f /workspace/logs/api.log /workspace/logs/comfyui.log /tmp/setup.log &
-
-exec tail -f /dev/null
+# Execute o script de setup
+chmod +x scripts/setup/entrypoint.sh
+./scripts/setup/entrypoint.sh
 ```
 
-## 📊 Monitoramento
+#### Método 2: Docker
+```bash
+# Build da imagem
+docker build -t media-api .
+
+# Execução do container
+docker run -d \
+  --env-file .env \
+  -p 8000:8000 \
+  -p 8080:8080 \
+  -p 6379:6379 \
+  -p 9090:9090 \
+  -p 3000:3000 \
+  --gpus all \
+  media-api
+```
+
+### 5. Verificação da Instalação
+
+1. Verifique os serviços:
+```bash
+# API
+curl http://localhost:8000/health
+
+# Redis
+redis-cli ping
+
+# Prometheus
+curl http://localhost:9090/-/healthy
+
+# Grafana
+curl http://localhost:3000/api/health
+```
+
+2. Acesse as interfaces:
+- API Docs: http://localhost:8000/docs
+- GUI: http://localhost:8080
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin)
+
+3. Monitore os logs:
+```bash
+tail -f /workspace/logs/*.log
+```
+
+## 📄 Monitoramento
 
 ### Métricas Disponíveis
 - `/metrics`: Métricas Prometheus
@@ -148,12 +180,6 @@ exec tail -f /dev/null
 ```bash
 # API logs
 tail -f /workspace/logs/api.log
-
-# ComfyUI logs
-tail -f /workspace/logs/comfyui.log
-
-# Setup logs
-tail -f /tmp/setup.log
 
 # GPU logs
 nvidia-smi -l 1

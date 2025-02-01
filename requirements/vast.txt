@@ -11,8 +11,11 @@ celery>=5.3.0
 
 # Monitoring
 prometheus-client>=0.17.0
-opentelemetry-api>=1.19.0
-opentelemetry-sdk>=1.19.0
+
+# Monitoring simplificado
+python-logging-loki>=0.3.1  # Para logging centralizado
+statsd>=3.3.0              # Para métricas
+sentry-sdk[fastapi]>=1.28.1  # Para rastreamento de erros
 
 # Audio
 ffmpeg-python>=0.2.0
@@ -22,8 +25,8 @@ python-dotenv>=1.0.0
 aiofiles>=23.2.1
 
 # CUDA e GPU
-nvidia-cuda-runtime-cu12
-nvidia-cuda-nvrtc-cu12
+nvidia-cuda-runtime-cu11
+nvidia-cuda-nvrtc-cu11
 cuda-python
 
 # Monitoramento GPU
@@ -36,20 +39,17 @@ triton>=2.0.0
 
 # Dependências específicas para Vast.ai
 nvidia-ml-py>=12.535.133
-nvidia-cudnn-cu12>=8.9.7.29
-nvidia-cublas-cu12>=12.1.3.1
-nvidia-cuda-nvrtc-cu12>=12.1.105
-nvidia-cuda-runtime-cu12>=12.1.105
+nvidia-cudnn-cu11>=8.5.0.96
+nvidia-cublas-cu11>=11.10.3.66
+nvidia-cuda-nvrtc-cu11>=11.7.99
+nvidia-cuda-runtime-cu11>=11.7.99
 triton>=2.1.0
 ninja>=1.11.1
 
 # Adicionar/Atualizar dependências críticas
-torch==2.1.0+cu121
-torchvision==0.16.0+cu121
-torchaudio==2.1.0+cu121
-opentelemetry-exporter-jaeger==1.20.0
+# PyTorch é instalado separadamente via pip com suporte CUDA
 fastapi-limiter==0.1.5
 
 # Novas dependências
 pynvml==11.5.0
-nvidia-ml-py3==7.352.0 
+nvidia-ml-py3==7.352.0

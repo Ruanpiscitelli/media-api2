@@ -685,21 +685,24 @@ async def execute_workflow(
             
         # Estimar recursos necessários
         resources = await gpu_manager.estimate_resources(workflow_request.workflow)
-        
+        if not resources:
+            raise HTTPException(500, "Falha ao estimar recursos necessários")
+            
         # Alocar GPU
-        gpu = await gpu_manager.allocate_gpu(
+        gpu_id = await gpu_manager.allocate_gpu(
+            task_id=str(uuid.uuid4()),  # Gerar ID único para a tarefa
             vram_required=resources["vram_required"],
             priority=workflow_request.priority
         )
         
-        if not gpu:
+        if gpu_id is None:
             raise HTTPException(503, "Nenhuma GPU disponível")
             
         # Criar tarefa
         task_id = await queue_manager.create_task(
             workflow=workflow_request.workflow,
             user_id=current_user.id,
-            gpu_id=gpu.id,
+            gpu_id=gpu_id,
             priority=workflow_request.priority
         )
         
@@ -714,7 +717,8 @@ async def execute_workflow(
         return {
             "task_id": task_id,
             "status": "queued",
-            "estimated_time": resources["estimated_time"]
+            "estimated_time": resources["estimated_time"],
+            "gpu_id": gpu_id
         }
         
     except Exception as e:

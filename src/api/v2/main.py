@@ -41,16 +41,6 @@ from .endpoints import (
 # Importação do servidor ComfyUI
 from src.comfy.server import comfy_server
 
-# Configuração do OpenTelemetry
-trace.set_tracer_provider(TracerProvider())
-tracer = trace.get_tracer(__name__)
-otlp_exporter = OTLPSpanExporter(
-    endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317"),
-    insecure=True
-)
-span_processor = BatchSpanProcessor(otlp_exporter)
-trace.get_tracer_provider().add_span_processor(span_processor)
-
 # Configuração da aplicação FastAPI
 app = FastAPI(
     title="Media Generation API",

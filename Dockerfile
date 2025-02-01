@@ -1,12 +1,11 @@
 # Atualizar imagem base e versão do CUDA
 FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
-# Adicionar OpenTelemetry e monitoramento
+# Remover OpenTelemetry e manter apenas monitoramento essencial
 RUN apt-get update && apt-get install -y \
     ocl-icd-opencl-dev \
     libgl1 \
-    libglib2.0-0 \
-    opentelemetry-sdk
+    libglib2.0-0
 
 # Configurar NVLink
 ENV NVIDIA_DISABLE_REQUIRE=1

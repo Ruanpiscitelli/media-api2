@@ -2,7 +2,7 @@
 Endpoints para síntese de voz, incluindo suporte a textos longos e streaming.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, File, UploadFile, Query, Body
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, File, UploadFile, Query, Body, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, constr, HttpUrl
 from typing import List, Optional, Dict, Any
@@ -375,21 +375,34 @@ async def list_emotions(
                     }
                 }
             }
+        },
+        400: {
+            "description": "Dados inválidos ou amostras insuficientes"
         }
     }
 )
 async def clone_voice(
-    request: VoiceCloneRequest,
-    samples: List[UploadFile] = File(...),
+    name: str = Form(...),
+    language: str = Form(...),
+    gender: str = Form(...),
+    description: Optional[str] = Form(None),
+    samples: List[UploadFile] = File(..., description="Arquivos de áudio para clonagem"),
     current_user = Depends(get_current_user)
 ):
     """Clona uma voz a partir de amostras de áudio."""
     try:
+        # Validação das amostras
+        if len(samples) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="São necessárias pelo menos 3 amostras de áudio"
+            )
+
         voice = await speech_service.clone_voice(
-            name=request.name,
-            description=request.description,
-            language=request.language,
-            gender=request.gender,
+            name=name,
+            description=description,
+            language=language,
+            gender=gender,
             samples=samples,
             user_id=current_user.id
         )
@@ -407,6 +420,9 @@ async def clone_voice(
         200: {
             "description": "Detalhes da voz obtidos com sucesso"
         },
+        403: {
+            "description": "Acesso negado - voz pertence a outro usuário"
+        },
         404: {
             "description": "Voz não encontrada"
         }
@@ -418,9 +434,17 @@ async def get_voice(
 ):
     """Obtém detalhes de uma voz específica."""
     try:
+        # Obtém a voz e verifica propriedade
         voice = await speech_service.get_voice(voice_id)
+        if voice.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para acessar esta voz"
+            )
         return voice
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.delete(
@@ -430,6 +454,9 @@ async def get_voice(
     responses={
         200: {
             "description": "Voz removida com sucesso"
+        },
+        403: {
+            "description": "Acesso negado - voz pertence a outro usuário"
         },
         404: {
             "description": "Voz não encontrada"
@@ -442,10 +469,20 @@ async def delete_voice(
 ):
     """Remove uma voz clonada."""
     try:
+        # Verifica se a voz existe e pertence ao usuário
+        voice = await speech_service.get_voice(voice_id)
+        if voice.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para remover esta voz"
+            )
+            
         await speech_service.delete_voice(
             voice_id=voice_id,
             user_id=current_user.id
         )
         return {"message": "Voz removida com sucesso"}
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=404, detail=str(e)) 
