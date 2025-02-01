@@ -90,7 +90,7 @@ echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
 
 # Instalar dependências críticas primeiro
-pip install slowapi fastapi uvicorn redis
+pip install slowapi fastapi uvicorn redis itsdangerous starlette
 
 # Verificar versão do Python
 python --version

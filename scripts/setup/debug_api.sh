@@ -32,6 +32,8 @@ try:
     from src.web.routes import router, gui_app
     from src.config import settings
     from slowapi import Limiter
+    from starlette.middleware.sessions import SessionMiddleware
+    import itsdangerous
     print('✅ Importação do app bem sucedida')
 except Exception as e:
     print(f'❌ Erro ao importar: {e}')
