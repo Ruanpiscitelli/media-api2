@@ -65,8 +65,15 @@ mkdir -p $WORKSPACE/{logs,media,cache,models,config,temp} \
         $WORKSPACE/outputs/suno \
         $WORKSPACE/cache/suno
 
-# Definir propriedade dos diretórios
-chown -R $(whoami):mediaapi $WORKSPACE/{temp,outputs,cache,logs,media,models,config}
+# Definir propriedade dos diretórios (versão corrigida)
+chown -R $(whoami):mediaapi \
+    $WORKSPACE/temp \
+    $WORKSPACE/outputs \
+    $WORKSPACE/cache \
+    $WORKSPACE/logs \
+    $WORKSPACE/media \
+    $WORKSPACE/models \
+    $WORKSPACE/config
 
 # Criar estrutura completa do projeto
 echo "Criando estrutura de diretórios..."
