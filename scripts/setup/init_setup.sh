@@ -184,9 +184,20 @@ python -c "import moviepy.editor; print('Moviepy instalado com sucesso!')"
 # Verificar versão do Python
 python --version
 
+# Adicionar antes da instalação do PyTorch
+echo -e "${BLUE}Instalando CUDA Toolkit 12.1...${NC}"
+apt-get install -y --no-install-recommends \
+    cuda-toolkit-12-1 \
+    libcudnn8=8.9.5.*-1+cuda12.1
+
+# Atualizar variáveis de ambiente
+sed -i 's/cuda-11.8/cuda-12.1/g' /etc/bash.bashrc
+source /etc/bash.bashrc
+
 # Instalar torch primeiro
 echo "Instalando PyTorch..."
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.1.0+cu121 torchvision==0.16.0+cu121 torchaudio==2.1.0+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
 
 # Instalar dependências do ComfyUI primeiro
 echo "Instalando dependências do ComfyUI..."
@@ -240,6 +251,20 @@ pip install accelerate==0.25.0
 
 # Adicionar na seção de dependências CUDA
 pip install triton==2.1.0
+
+# Adicionar após instalação do CUDA
+pip install nvidia-cudnn-cu12==8.9.5.29 \
+    nvidia-cublas-cu12==12.1.3.1 \
+    nvidia-cuda-nvrtc-cu12==12.1.105 \
+    nvidia-cuda-runtime-cu12==12.1.105
+
+echo -e "${BLUE}Verificando drivers NVIDIA...${NC}"
+nvidia-smi --query-gpu=driver_version --format=csv,noheader
+if [ $? -ne 0 ]; then
+    echo "❌ Drivers NVIDIA não detectados!"
+    echo "Instale os drivers compatíveis com CUDA 12.1"
+    exit 1
+fi
 
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR
@@ -511,3 +536,7 @@ async def health_check():
     return {"status": "ok"}
 EOF
 fi
+
+# Atualizar links para CUDA 12.1
+ln -sfn /usr/local/cuda-12.1 /usr/local/cuda
+ln -sfn /usr/local/cuda-12.1/lib64/libcudart.so.12.1 /usr/lib/x86_64-linux-gnu/libcudart.so.12.1
