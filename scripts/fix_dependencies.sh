@@ -32,17 +32,38 @@ source /workspace/venv_clean/bin/activate
 log "Atualizando pip..."
 pip install --upgrade pip
 
-# Instalar dependências específicas primeiro
-log "Instalando dependências críticas..."
-pip install python-jose[cryptography] --no-cache-dir
+# Instalar dependências básicas primeiro
+log "Instalando dependências básicas..."
+pip install --no-cache-dir \
+    python-jose[cryptography] \
+    psutil \
+    fastapi \
+    uvicorn \
+    python-dotenv \
+    pydantic \
+    pydantic-settings
 
 # Instalar outras dependências
 log "Instalando dependências do projeto..."
 pip install -r /workspace/media-api2/requirements/vast.txt --no-cache-dir
 
 # Verificar instalação
-log "Verificando instalação..."
-pip show python-jose
-pip show cryptography
+log "Verificando instalações críticas..."
+packages=(
+    "python-jose"
+    "cryptography"
+    "psutil"
+    "fastapi"
+    "uvicorn"
+    "pydantic"
+)
+
+for package in "${packages[@]}"; do
+    if pip show "$package" > /dev/null; then
+        log "✅ $package instalado"
+    else
+        error "❌ $package não encontrado"
+    fi
+done
 
 log "Setup completo!" 
