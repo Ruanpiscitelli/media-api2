@@ -23,8 +23,7 @@ from src.comfy.template_manager import TemplateManager
 from src.core.config import settings
 from src.core.rate_limit import rate_limiter
 from src.core.checks import run_system_checks
-from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY, REQUESTS
-from src.core.monitoring.metrics import API_METRICS
+from src.core.monitoring import REQUESTS, ERRORS
 from src.core.redis_client import close_redis_pool, init_redis_pool
 from src.core.middleware.connection import ConnectionMiddleware
 from src.core.initialization import initialize_api
@@ -103,7 +102,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         })
         
         # Registrar métricas
-        REQUEST_LATENCY.observe(process_time)
+        REQUESTS.inc()
         
         return response
 
@@ -153,8 +152,14 @@ async def rate_limit_middleware(request: Request, call_next):
 # Middleware de métricas
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
-    REQUEST_COUNT.labels(method=request.method).inc()
-    return await call_next(request)
+    try:
+        REQUESTS.inc()
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        ERRORS.inc()
+        logger.error(f"Erro: {e}")
+        raise
 
 # Incluir routers com prefixo de versão
 API_V2_PREFIX = "/api/v2"
