@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 echo "🚀 Iniciando setup automático do Media API..."
@@ -46,7 +46,7 @@ fi
 
 echo -e "${BLUE}4. Configurando ambiente Python...${NC}"
 python3 -m venv $WORKSPACE/venv_clean
-source $WORKSPACE/venv_clean/bin/activate
+. $WORKSPACE/venv_clean/bin/activate
 
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
@@ -93,7 +93,7 @@ cat > $WORKSPACE/restart.sh << EOF
 
 echo "Reiniciando serviços..."
 
-source $WORKSPACE/venv_clean/bin/activate
+. $WORKSPACE/venv_clean/bin/activate
 
 # Reiniciar Redis
 pkill -f redis-server
