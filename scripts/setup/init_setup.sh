@@ -34,28 +34,15 @@ maxmemory 8gb
 maxmemory-policy allkeys-lru
 EOF
 
-# Configurar e iniciar Redis como serviço
-cat > /etc/systemd/system/redis-server.service << EOF
-[Unit]
-Description=Redis In-Memory Data Store
-After=network.target
+# Iniciar Redis diretamente
+redis-server /etc/redis/redis.conf --daemonize yes
 
-[Service]
-Type=forking
-ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
-PIDFile=/run/redis/redis-server.pid
-TimeoutStopSec=0
-Restart=always
-User=redis
-Group=redis
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable redis-server
-systemctl start redis-server
+# Verificar se Redis iniciou
+sleep 2
+if ! redis-cli ping > /dev/null; then
+    echo "Erro ao iniciar Redis!"
+    exit 1
+fi
 
 echo -e "${BLUE}4. Configurando ambiente Python...${NC}"
 python3 -m venv $WORKSPACE/venv_clean
@@ -109,7 +96,14 @@ echo "Reiniciando serviços..."
 source $WORKSPACE/venv_clean/bin/activate
 
 # Reiniciar Redis
-systemctl restart redis-server
+pkill -f redis-server
+redis-server /etc/redis/redis.conf --daemonize yes
+sleep 2
+
+if ! redis-cli ping > /dev/null; then
+    echo "Erro ao reiniciar Redis!"
+    exit 1
+fi
 
 # Reiniciar API
 pkill -f "uvicorn"
