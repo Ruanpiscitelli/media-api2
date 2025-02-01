@@ -16,7 +16,7 @@ import psutil
 import gc
 
 from src.config.gpu_config import get_gpu_config
-from src.core.cache import Cache, cache_manager
+from src.core.cache import cache_manager
 from src.core.errors import InsufficientVRAMError, PreemptionError
 
 # Configuração de logging
@@ -58,7 +58,7 @@ class GPUManager:
     def __init__(self):
         """Inicializa o gerenciador unificado de GPUs"""
         self.config = get_gpu_config()
-        self.cache = Cache()
+        self.cache = cache_manager
         
         # Estado interno
         self.gpus = []
@@ -251,8 +251,10 @@ class GPUManager:
         
     async def predict_vram_usage(self, task_type: str) -> float:
         """Prediz uso de VRAM com base no tipo de tarefa e histórico"""
+        cache = await self.cache.get_cache('gpu')
         cache_key = f"vram_estimate_{task_type}"
-        cached = await self.cache.get(cache_key)
+        
+        cached = await cache.get(cache_key)
         if cached:
             return float(cached)
             
@@ -260,7 +262,7 @@ class GPUManager:
         load_factor = 1 + (len(self.tasks) / len(self.gpus)) if self.gpus else 1
         estimate = base_estimate * load_factor * 1024**3  # Converte para bytes
         
-        await self.cache.set(cache_key, estimate, ttl=300)
+        await cache.set(cache_key, estimate, ttl=300)
         return estimate
         
     async def allocate_gpu(self, task_type: str, required_memory: int) -> int:
