@@ -33,12 +33,16 @@ import secrets
 import redis
 from redis.asyncio import Redis
 import redis.asyncio
-from src.core.rate_limit import rate_limiter
+from src.core.rate_limit import limiter
 from src.core.config import settings
 from src.core.checks import run_system_checks
 from src.comfy.workflow_manager import ComfyWorkflowManager
 from src.core.gpu.manager import GPUManager
 from src.core.queue.manager import QueueManager
+from src.core.initialization import initialize_api
+from src.core.errors import APIError, api_error_handler, validation_error_handler
+from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
+from src.core.redis_client import close_redis_pool
 
 # Importação dos routers
 from src.api.v2.endpoints import (
@@ -161,10 +165,12 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         await startup_tasks()
+        await initialize_api()
         yield
     finally:
         # Shutdown
         await shutdown_tasks()
+        await close_redis_pool()
 
 async def shutdown_tasks():
     """Tarefas de shutdown melhoradas"""
@@ -205,8 +211,10 @@ async def shutdown_tasks():
 logger = setup_logging()
 
 # Configurar rate limiter
-limiter = Limiter(key_func=get_remote_address)
-security = HTTPBearer()
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+)
 
 # Middleware de segurança
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -228,58 +236,105 @@ run_system_checks()
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
     debug=settings.DEBUG,
+    # Otimizações de performance
+    default_response_class=JSONResponse,
+    generate_unique_id_function=None,  # Desativa geração de IDs únicos
     lifespan=lifespan
 )
 
-# Adicionar middlewares de segurança
-app.add_middleware(SecurityHeadersMiddleware)
+# Usar ASGI middleware puro ao invés de BaseHTTPMiddleware para melhor performance
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.update({
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+    })
+    return response
+
+# Configurar CORS de forma otimizada
 app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.SECRET_KEY or secrets.token_urlsafe(32),
-    max_age=3600,  # 1 hora
-    same_site="lax",
-    https_only=True
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Range", "Range"],  # Readicionado expose_headers
+    max_age=3600,
+)
+
+# Configurar rate limiting global com Redis
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 )
 
 # Configurar rate limiting
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Rate limiting global
+# Adicionar handler para RateLimitExceeded
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": "Too many requests",
+            "retry_after": exc.retry_after
+        }
+    )
+
+# Middleware de rate limiting global
 @app.middleware("http")
-@limiter.limit("60/minute")  # Limite global
+@limiter.limit("60/minute")  # Limite global de 60 requisições por minuto
 async def global_rate_limit(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# Configurar CORS
-def setup_cors():
-    """Configura CORS para a aplicação."""
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["Content-Range", "Range"],
-        max_age=3600,
-    )
-
-setup_cors()
-
-# Middleware para verificar origens
-@app.middleware("http")
-async def cors_origin_middleware(request: Request, call_next):
-    """Middleware para verificar origens CORS."""
-    origin = request.headers.get("origin")
-    if origin and origin not in settings.BACKEND_CORS_ORIGINS:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Origin not allowed"}
+# Middleware de rate limiting específico por endpoint usando Redis
+async def endpoint_rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    endpoint = request.url.path
+    key = f"rate_limit:{client_ip}:{endpoint}"
+    
+    # Obter limite específico do endpoint ou usar padrão
+    limit = settings.RATE_LIMITS.get(endpoint, settings.DEFAULT_RATE_LIMIT)
+    window = 60  # janela de 60 segundos
+    
+    async with redis_client.pipeline(transaction=True) as pipe:
+        # Usar Redis Sorted Set para tracking preciso de timestamps
+        now = time.time()
+        pipe.zremrangebyscore(key, 0, now - window)  # Remover requests antigos
+        pipe.zcard(key)  # Contar requests atuais
+        pipe.zadd(key, {str(now): now})  # Adicionar request atual
+        pipe.expire(key, window)  # Definir TTL
+        _, current, _, _ = await pipe.execute()
+        
+    if current > limit:
+        raise RateLimitExceeded(
+            retry_after=window
         )
-    response = await call_next(request)
-    return response
+    
+    return await call_next(request)
+
+app.middleware("http")(endpoint_rate_limit_middleware)
+
+# Configurar handlers de erro
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+app.add_exception_handler(429, limiter.error_handler)
+
+# Incluir rotas de forma otimizada
+app.include_router(
+    api_v2_router,
+    prefix=settings.API_V2_STR,
+    # Desativar geração de tags automática
+    generate_unique_id_function=None
+)
 
 # Montar arquivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -761,20 +816,49 @@ async def save_workflow(
     except Exception as e:
         raise HTTPException(500, str(e))
 
+# Registrar handlers de erro
+app.add_exception_handler(APIError, api_error_handler)
+app.add_exception_handler(RequestValidationError, validation_error_handler)
+
+# Middleware para métricas
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    
+    # Registrar métricas
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code
+    ).inc()
+    
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=request.url.path
+    ).observe(time.time() - start_time)
+    
+    return response
+
 if __name__ == "__main__":
-    # Configuração para debugging
     import uvicorn
-    import debugpy
     
-    # Habilita debugging remoto
-    debugpy.listen(("0.0.0.0", 5678))
-    
-    # Configurações do servidor
+    # Configurações otimizadas do uvicorn
     uvicorn.run(
-        "main:app",
+        "src.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,  # Habilita auto-reload para desenvolvimento
-        debug=settings.DEBUG,
-        workers=1  # Usar 1 worker para facilitar debugging
+        workers=4,  # Número de workers baseado em CPUs
+        loop="uvloop",  # Usar uvloop para melhor performance
+        http="httptools",  # Usar httptools
+        log_level=settings.LOG_LEVEL.lower(),
+        reload=settings.DEBUG,
+        reload_delay=0.25,  # Reduzir delay do reload
+        access_log=settings.DEBUG,  # Desativar access_log em produção
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+        # Otimizações de buffer
+        backlog=2048,
+        limit_concurrency=1000,
+        timeout_keep_alive=5,
     ) 

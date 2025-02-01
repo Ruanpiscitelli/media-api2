@@ -3,14 +3,23 @@ fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 python-multipart>=0.0.6
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 python-jose[cryptography]>=3.3.0
 
 # Cache e Queue
 redis>=4.5.0
+aioredis>=2.0.0
 celery>=5.3.0
+slowapi>=0.1.5
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+aiosqlite>=0.19.0
 
 # Monitoring
 prometheus-client>=0.17.0
+python-json-logger>=2.0.7
 
 # Monitoring simplificado
 python-logging-loki>=0.3.1  # Para logging centralizado
@@ -34,8 +43,11 @@ gputil>=1.4.0
 py3nvml>=0.2.7
 
 # Otimização
+uvloop>=0.17.0
+httptools>=0.5.0
+ujson>=5.7.0
 onnxruntime-gpu>=1.15.0
-triton>=2.0.0
+triton>=2.1.0
 
 # Dependências específicas para Vast.ai
 nvidia-ml-py>=12.535.133
@@ -53,3 +65,8 @@ fastapi-limiter==0.1.5
 # Novas dependências
 pynvml==11.5.0
 nvidia-ml-py3==7.352.0
+
+# Segurança
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
