@@ -33,6 +33,9 @@ echo -e "\n${BLUE}Criando diretórios...${NC}"
 mkdir -p /workspace/outputs/shorts
 mkdir -p /workspace/cache/shorts
 mkdir -p /workspace/uploads/shorts
+mkdir -p /workspace/outputs/images
+mkdir -p /workspace/cache/images
+mkdir -p /workspace/uploads/images
 mkdir -p /workspace/logs
 mkdir -p /workspace/media
 mkdir -p /workspace/temp
@@ -78,6 +81,19 @@ try:
     import fastapi
     import redis
     import uvicorn
+    import PIL
+    import numpy as np
+    from pydantic import BaseModel
+    import aioredis
+    import prometheus_client
+    import opentelemetry
+    import psutil
+    import yaml
+    import colorama
+    import aiofiles
+    import itsdangerous
+    import semver
+    import yt_dlp
     print("✅ Dependências críticas OK")
 except ImportError as e:
     print(f"❌ Erro: {e}")

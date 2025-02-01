@@ -4,6 +4,8 @@ Configurações globais da aplicação.
 from pydantic_settings import BaseSettings
 import os
 from pathlib import Path
+from typing import Optional
+import torch
 
 class Settings(BaseSettings):
     # Configurações básicas
@@ -50,6 +52,15 @@ class Settings(BaseSettings):
 
     # Adicionar timeout de renderização
     RENDER_TIMEOUT_SECONDS: int = 300  # 5 minutos
+
+    # Adicionar configurações de imagem
+    IMAGE_OUTPUT_DIR: Path = Path("/workspace/outputs/images")
+    IMAGE_CACHE_DIR: Path = Path("/workspace/cache/images")
+    IMAGE_UPLOAD_DIR: Path = Path("/workspace/uploads/images")
+    
+    # Configurações de modelo de imagem
+    IMAGE_MODEL_PATH: Optional[str] = None
+    IMAGE_MODEL_DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     def check_config(self):
         """Valida configurações essenciais"""

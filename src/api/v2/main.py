@@ -10,9 +10,10 @@ Este arquivo contém a configuração principal da API FastAPI, incluindo:
 - Configuração de logging OpenTelemetry
 """
 
+import logging
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from prometheus_client import make_asgi_app
 from opentelemetry import trace
@@ -28,7 +29,14 @@ from .middleware.auth import AuthJWTMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 
 # Importação dos routers
-from .endpoints import image, video, speech, comfy
+from .endpoints import (
+    images,  # Mudou de image para images
+    video,
+    speech,
+    comfy,
+    shorts,  # Adicionado novo router
+    auth,    # Adicionado novo router
+)
 
 # Importação do servidor ComfyUI
 from src.comfy.server import comfy_server
@@ -36,25 +44,40 @@ from src.comfy.server import comfy_server
 # Configuração do OpenTelemetry
 trace.set_tracer_provider(TracerProvider())
 tracer = trace.get_tracer(__name__)
-otlp_exporter = OTLPSpanExporter(endpoint="otel-collector:4317", insecure=True)
+otlp_exporter = OTLPSpanExporter(
+    endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317"),
+    insecure=True
+)
 span_processor = BatchSpanProcessor(otlp_exporter)
 trace.get_tracer_provider().add_span_processor(span_processor)
 
 # Configuração da aplicação FastAPI
 app = FastAPI(
     title="Media Generation API",
-    description=open("docs/api_description.md").read(),  # Arquivo com descrição detalhada
+    description="API para geração de mídia usando IA",  # Simplificado para evitar erro de arquivo
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
         {
-            "name": "image",
+            "name": "images",
             "description": "Geração e processamento de imagens com IA"
         },
         {
             "name": "video",
             "description": "Síntese e edição de vídeos"
+        },
+        {
+            "name": "shorts",
+            "description": "Geração de YouTube Shorts"
+        },
+        {
+            "name": "speech",
+            "description": "Síntese de voz e áudio"
+        },
+        {
+            "name": "auth",
+            "description": "Autenticação e autorização"
         }
     ]
 )
@@ -62,7 +85,7 @@ app = FastAPI(
 # Configuração do CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ALLOWED_ORIGINS", "").split(","),
+    allow_origins=os.getenv("CORS_ALLOWED_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,6 +118,7 @@ async def startup_event():
         try:
             await comfy_server.start()
             await comfy_server.wait_until_ready(timeout=30)
+            logger.info("ComfyUI iniciado com sucesso")
         except Exception as e:
             logger.error(f"Falha na inicialização do ComfyUI: {e}")
             raise RuntimeError("Servidor ComfyUI não inicializado")
@@ -106,15 +130,18 @@ async def shutdown_event():
     with tracer.start_as_current_span("comfy_shutdown") as span:
         span.set_attribute("service.name", "comfy-ui")
         await comfy_server.stop()
+        logger.info("ComfyUI parado com sucesso")
 
 # Handlers de erro
 @app.exception_handler(Exception)
 async def generic_exception_handler(request, exc):
+    logger.error(f"Erro não tratado: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "detail": "Erro interno do servidor",
             "type": type(exc).__name__,
+            "path": request.url.path
         }
     )
 
@@ -130,14 +157,16 @@ async def health_check():
         return {
             "status": "healthy",
             "version": "2.0.0",
-            "environment": "production"
+            "environment": os.getenv("ENVIRONMENT", "production")
         }
 
 # Registro dos routers
-app.include_router(image.router, prefix="/v2/image", tags=["image"])
+app.include_router(images.router, prefix="/v2/images", tags=["images"])
 app.include_router(video.router, prefix="/v2/video", tags=["video"])
 app.include_router(speech.router, prefix="/v2/speech", tags=["speech"])
 app.include_router(comfy.router, prefix="/v2/comfy", tags=["comfy"])
+app.include_router(shorts.router, prefix="/v2/shorts", tags=["shorts"])
+app.include_router(auth.router, prefix="/v2/auth", tags=["auth"])
 
 async def get_api_version(x_api_version: str = Header(default="v2")):
     if x_api_version not in ["v1", "v2"]:
@@ -162,6 +191,17 @@ async def log_requests(request: Request, call_next):
     )
     
     return response
+
+@app.middleware("http")
+async def handle_legacy_image_routes(request: Request, call_next):
+    """
+    Middleware para redirecionar requisições antigas de /v2/image para /v2/images
+    mantendo compatibilidade com clientes existentes
+    """
+    if request.url.path.startswith("/v2/image/"):
+        new_path = request.url.path.replace("/v2/image/", "/v2/images/", 1)
+        return RedirectResponse(url=new_path, status_code=308)
+    return await call_next(request)
 
 if __name__ == "__main__":
     import uvicorn

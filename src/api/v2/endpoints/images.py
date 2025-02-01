@@ -1,5 +1,5 @@
 """
-Endpoints para geração de imagens usando SDXL.
+Endpoints para geração e manipulação de imagens.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, BackgroundTasks
@@ -11,10 +11,32 @@ from src.services.image import ImageService
 from src.core.gpu_manager import gpu_manager
 from src.core.queue_manager import queue_manager
 import logging
+import os
+from pathlib import Path
+from uuid import uuid4
 
-router = APIRouter()
+router = APIRouter(tags=["images"])
 logger = logging.getLogger(__name__)
 image_service = ImageService()
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+async def save_upload_file(upload_file: UploadFile) -> Path:
+    """
+    Salva um arquivo enviado e retorna o caminho
+    """
+    # Gera nome único para evitar conflitos
+    file_id = uuid4()
+    extension = Path(upload_file.filename).suffix
+    file_path = UPLOAD_DIR / f"{file_id}{extension}"
+    
+    # Salva o arquivo
+    content = await upload_file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    return file_path
 
 class ImageGenerationRequest(BaseModel):
     """Modelo para requisição de geração de imagem"""
@@ -38,10 +60,21 @@ class ImageResponse(BaseModel):
 async def generate_image(
     request: ImageGenerationRequest,
     background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user),
-    rate_limit = Depends(rate_limiter)
-):
-    """Gera uma imagem usando SDXL"""
+    current_user: Dict = Depends(get_current_user),
+    rate_limit: Dict = Depends(rate_limiter)
+) -> Dict:
+    """
+    Gera uma imagem usando SDXL de forma assíncrona com gerenciamento de recursos.
+    
+    Args:
+        request: Parâmetros da geração de imagem
+        background_tasks: Gerenciador de tarefas em background
+        current_user: Usuário autenticado
+        rate_limit: Limitador de taxa de requisições
+    
+    Returns:
+        Dict com status da tarefa e ID para acompanhamento
+    """
     try:
         # Verifica disponibilidade de GPU
         gpu = await gpu_manager.get_available_gpu(
@@ -58,9 +91,10 @@ async def generate_image(
             task_type="image_generation",
             params=request.dict(),
             gpu_id=gpu.id,
+            user_id=current_user["id"],
             priority=1
         )
-        
+
         # Inicia processamento em background
         background_tasks.add_task(
             gpu_manager.process_task,
@@ -74,7 +108,12 @@ async def generate_image(
             "estimated_time": await gpu_manager.estimate_completion_time(
                 gpu.id,
                 task_type="image"
-            )
+            ),
+            "images": [],
+            "metadata": {
+                "gpu_id": gpu.id,
+                "queue_position": await queue_manager.get_position(task_id)
+            }
         }
         
     except Exception as e:
@@ -108,23 +147,56 @@ async def generate_batch(
 async def upscale_image(
     image: UploadFile = File(...),
     scale: int = 2,
-    current_user = Depends(get_current_user),
-    rate_limit = Depends(rate_limiter)
-):
-    """Aumenta a resolução de uma imagem"""
+    current_user: Dict = Depends(get_current_user)
+) -> Dict:
+    """
+    Aumenta a resolução de uma imagem.
+    """
     try:
+        # Salva o arquivo enviado
+        image_path = await save_upload_file(image)
+        
+        # Processa a imagem
         result = await image_service.upscale(
-            image=await image.read(),
-            scale=scale,
-            user_id=current_user.id
+            image_path=str(image_path),
+            scale=scale
         )
-        return {
-            "status": "success",
-            "image": result["image_url"]
-        }
+        
+        # Remove o arquivo temporário
+        os.unlink(image_path)
+        
+        return result
         
     except Exception as e:
         logger.error(f"Erro no upscale: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/process")
+async def process_image(
+    image: UploadFile = File(...),
+    operations: List[Dict],
+    current_user: Dict = Depends(get_current_user)
+) -> Dict:
+    """
+    Aplica operações em uma imagem.
+    """
+    try:
+        # Salva o arquivo enviado
+        image_path = await save_upload_file(image)
+        
+        # Processa a imagem
+        result = await image_service.process_image(
+            image_path=str(image_path),
+            operations=operations
+        )
+        
+        # Remove o arquivo temporário
+        os.unlink(image_path)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Erro no processamento: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/styles")
