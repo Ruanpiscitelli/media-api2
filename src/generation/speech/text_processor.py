@@ -118,13 +118,11 @@ class TextProcessor:
     def _load_phonemizer(self):
         """Carrega e configura o phonemizer"""
         try:
-            # Configurar backend espeak
+            # Usar apenas configurações essenciais documentadas
             return EspeakBackend(
                 language='pt-br',
                 preserve_punctuation=True,
-                with_stress=True,
-                punctuation_marks=';:,.!?¡¿—…"«»""()',
-                words_mismatch='ignore'
+                with_stress=True
             )
         except Exception as e:
             logger.error(f"Erro carregando phonemizer: {e}")
