@@ -188,10 +188,14 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # Verificar portas em uso
 echo "Verificando portas em uso..."
-for port in 8000 8001 8080 8188; do
+for port in 8000 8001; do
     if netstat -tuln | grep ":$port " > /dev/null; then
         echo "Porta $port já está em uso. Encerrando processo..."
-        fuser -k $port/tcp || true
+        pid=$(lsof -ti:$port)
+        if [ ! -z "$pid" ]; then
+            echo "Matando processo $pid na porta $port"
+            kill -9 $pid || true
+        fi
     fi
 done
 
