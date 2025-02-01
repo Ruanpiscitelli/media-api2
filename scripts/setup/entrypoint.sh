@@ -71,6 +71,21 @@ scrape_configs:
 EOF
 
 nohup ./prometheus --config.file=prometheus.yml --web.listen-address=:9090 > /workspace/logs/prometheus.log 2>&1 &
+PROMETHEUS_PID=$!
+
+# Verificar se Prometheus iniciou
+echo "Aguardando Prometheus iniciar..."
+for i in {1..30}; do
+  if curl -s http://localhost:9090/-/healthy > /dev/null; then
+    echo "Prometheus iniciado com sucesso!"
+    break
+  fi
+  sleep 1
+  if [ $i -eq 30 ]; then
+    echo "Erro: Timeout aguardando Prometheus iniciar"
+    exit 1
+  fi
+done
 
 # 7. Configurar e iniciar Grafana
 cd /workspace
@@ -90,6 +105,21 @@ admin_password = admin
 EOF
 
 nohup ./bin/grafana-server --config=conf/custom.ini --homepath=. > /workspace/logs/grafana.log 2>&1 &
+GRAFANA_PID=$!
+
+# Verificar se Grafana iniciou
+echo "Aguardando Grafana iniciar..."
+for i in {1..30}; do
+  if curl -s http://localhost:3000/api/health > /dev/null; then
+    echo "Grafana iniciado com sucesso!"
+    break
+  fi
+  sleep 1
+  if [ $i -eq 30 ]; then
+    echo "Erro: Timeout aguardando Grafana iniciar"
+    exit 1
+  fi
+done
 
 # 8. Iniciar API
 cd /workspace/media-api2
@@ -100,12 +130,40 @@ touch /workspace/logs/{api,redis,prometheus,grafana}.log
 
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) \
     --log-level info --log-file /workspace/logs/api.log &
+API_PID=$!
+
+# Verificar se API iniciou
+echo "Aguardando API iniciar..."
+for i in {1..30}; do
+  if curl -s http://localhost:8000/health > /dev/null; then
+    echo "API iniciada com sucesso!"
+    break
+  fi
+  sleep 1
+  if [ $i -eq 30 ]; then
+    echo "Erro: Timeout aguardando API iniciar"
+    exit 1
+  fi
+done
 
 echo "Setup concluído! Serviços iniciados:"
 echo "- API: http://localhost:8000"
 echo "- Redis: localhost:6379"
 echo "- Prometheus: http://localhost:9090"
 echo "- Grafana: http://localhost:3000"
+
+# Função para parar serviços graciosamente
+cleanup() {
+    echo "Parando serviços..."
+    kill $PROMETHEUS_PID 2>/dev/null
+    kill $GRAFANA_PID 2>/dev/null
+    kill $API_PID 2>/dev/null
+    redis-cli shutdown
+    exit 0
+}
+
+# Registrar função de cleanup para SIGTERM e SIGINT
+trap cleanup SIGTERM SIGINT
 
 # Manter container rodando e mostrar logs
 tail -f /workspace/logs/*.log 
