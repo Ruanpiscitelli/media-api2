@@ -41,7 +41,14 @@ NC='\033[0m'
 echo -e "${BLUE}1. Instalando dependências...${NC}"
 apt-get update && apt-get install -y \
     git python3-pip python3-venv redis-server net-tools ffmpeg \
-    pkg-config libicu-dev python3-dev jq
+    pkg-config libicu-dev python3-dev jq \
+    python3-tk python3-dev python3-setuptools \
+    libsm6 libxext6 libxrender-dev libglib2.0-0 \
+    imagemagick
+
+# Configurar imagemagick para permitir operações de vídeo
+sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml || true
+sed -i 's/rights="none" pattern="VIDEO"/rights="read|write" pattern="VIDEO"/' /etc/ImageMagick-6/policy.xml || true
 
 echo -e "${BLUE}2. Configurando diretórios...${NC}"
 mkdir -p $WORKSPACE/{logs,media,cache,models,config,temp} \
@@ -132,8 +139,23 @@ echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
 
 # Instalar dependências críticas primeiro
-pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings \
-    moviepy opencv-python-headless ffmpeg-python Pillow numpy scipy einops pytorch-lightning aiofiles psutil
+pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
+
+# Depois as dependências de mídia
+pip install --no-cache-dir \
+    moviepy==1.0.3 \
+    opencv-python-headless==4.8.0.74 \
+    ffmpeg-python==0.2.0 \
+    Pillow==10.0.0 \
+    numpy==1.24.0 \
+    scipy==1.11.3 \
+    einops==0.6.1 \
+    pytorch-lightning==2.0.9 \
+    aiofiles==23.2.1 \
+    psutil==5.9.5
+
+# Verificar instalação do moviepy
+python -c "import moviepy.editor; print('Moviepy instalado com sucesso!')"
 
 # Verificar versão do Python
 python --version
