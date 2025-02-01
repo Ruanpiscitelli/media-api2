@@ -118,22 +118,13 @@ class TextProcessor:
     def _load_phonemizer(self):
         """Carrega e configura o phonemizer"""
         try:
-            # Criar separador personalizado
-            separator = Separator(
-                word=' ',
-                syllable='-',
-                phone='|'
-            )
-            
             # Configurar backend espeak
             return EspeakBackend(
                 language='pt-br',
                 preserve_punctuation=True,
                 with_stress=True,
                 punctuation_marks=';:,.!?¡¿—…"«»""()',
-                language_switch='remove-flags',
-                words_mismatch='ignore',
-                separator=separator  # Usar objeto Separator
+                words_mismatch='ignore'
             )
         except Exception as e:
             logger.error(f"Erro carregando phonemizer: {e}")
@@ -216,10 +207,14 @@ class TextProcessor:
         try:
             text = " ".join(tokens)
             phonemes = self.phonemizer.phonemize(
-                text,
-                strip=True
+                [text],
+                separator=Separator(
+                    word=' ',
+                    syllable='-',
+                    phone='|'
+                )
             )
-            return phonemes.split()
+            return phonemes[0].split() if phonemes else tokens
         except Exception as e:
             logger.error(f"Erro na fonemização: {e}")
             return tokens
