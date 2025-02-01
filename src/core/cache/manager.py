@@ -13,6 +13,7 @@ from prometheus_client.registry import REGISTRY
 
 from src.core.config import settings
 from src.core.errors import APIError
+from src.core.monitoring.metrics import CACHE_METRICS
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +76,13 @@ class CacheManager:
     Suporta Redis e cache local com fallback automático.
     """
     def __init__(self):
-        self.local_cache: Dict[str, Dict[str, Any]] = {}
+        self.redis = None
+        self.local_cache = {}
+        self.metrics = CACHE_METRICS
         self.local_lock = asyncio.Lock()
-        self.redis: Optional[aioredis.Redis] = None
-        
-    async def _connect_redis(self):
+        self._connect()
+
+    def _connect(self):
         """Estabelece conexão com Redis de forma assíncrona"""
         try:
             self.redis = await aioredis.from_url(
@@ -97,7 +100,7 @@ class CacheManager:
     async def ensure_connection(self):
         """Garante que existe uma conexão Redis"""
         if self.redis is None:
-            await self._connect_redis()
+            await self._connect()
 
     async def get_cache(self, namespace: str) -> 'Cache':
         """Retorna uma interface de cache para o namespace especificado"""

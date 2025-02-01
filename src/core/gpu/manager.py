@@ -18,6 +18,7 @@ import gc
 from src.config.gpu_config import get_gpu_config
 from src.core.cache import cache_manager
 from src.core.errors import InsufficientVRAMError, PreemptionError
+from src.core.monitoring.metrics import GPU_METRICS
 
 # Configuração de logging
 logger = logging.getLogger(__name__)
@@ -69,8 +70,7 @@ class GPUManager:
         # Inicialização
         self._init_nvml()
         self._init_gpus()
-        self._init_metrics()
-        self._start_monitoring()
+        self.metrics = GPU_METRICS
         
         # Mapa de VRAM por tipo de tarefa
         self.vram_map = {

@@ -1,7 +1,8 @@
 """
 Configuração de monitoramento usando Prometheus
 """
-from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_client import start_http_server
+from src.core.monitoring.metrics import API_METRICS
 import logging
 import anyio
 from anyio.to_thread import current_default_thread_limiter
@@ -9,19 +10,6 @@ import asyncio
 import socket
 
 logger = logging.getLogger(__name__)
-
-# Métricas básicas
-REQUEST_COUNT = Counter(
-    'http_requests_total',
-    'Total de requisições HTTP',
-    ['method', 'endpoint', 'status']
-)
-
-REQUEST_LATENCY = Histogram(
-    'http_request_duration_seconds',
-    'Latência das requisições HTTP',
-    ['method', 'endpoint']
-)
 
 def setup_monitoring():
     """Configura métricas básicas do Prometheus"""
