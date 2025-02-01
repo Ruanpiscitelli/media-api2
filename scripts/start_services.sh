@@ -65,6 +65,34 @@ EOF
 echo -e "\n${BLUE}Iniciando API...${NC}"
 mkdir -p $LOG_DIR
 
+# Função para tentar iniciar a API
+start_api() {
+    local try=$1
+    echo -e "\nTentativa $try de $MAX_TRIES..."
+    
+    # Mostrar últimas linhas do log
+    if [ -f "$LOG_DIR/api.log" ]; then
+        echo -e "\nÚltimas linhas do log:"
+        tail -n 5 $LOG_DIR/api.log
+    fi
+
+    # Verificar se processo ainda está rodando
+    if ! ps -p $API_PID > /dev/null; then
+        echo -e "${RED}❌ Processo da API morreu!${NC}"
+        echo -e "\nLog completo do erro:"
+        tail -n 50 $LOG_DIR/api.log
+        return 1
+    fi
+
+    # Tentar acessar o health check
+    if curl -s http://localhost:8000/health > /dev/null; then
+        echo -e "\n${GREEN}✅ API iniciada com sucesso na tentativa $try!${NC}"
+        return 0
+    fi
+
+    return 1
+}
+
 # Matar processos anteriores
 pkill -f "uvicorn" || true
 
@@ -86,33 +114,22 @@ API_PID=$!
 # Aguardar API iniciar
 echo "Aguardando API iniciar..."
 MAX_TRIES=15
-COUNT=0
+COUNT=1
 
-while [ $COUNT -lt $MAX_TRIES ]; do
-    echo -n "."
-    if curl -s http://localhost:8000/health > /dev/null; then
-        echo -e "\n${GREEN}✅ API iniciada com sucesso!${NC}"
+while [ $COUNT -le $MAX_TRIES ]; do
+    if start_api $COUNT; then
         break
     fi
     
-    # Verificar se processo morreu
-    if ! ps -p $API_PID > /dev/null; then
-        echo -e "\n${RED}❌ Processo da API morreu!${NC}"
-        echo -e "\nÚltimas linhas do log:"
-        tail -n 20 $LOG_DIR/api.log
+    if [ $COUNT -eq $MAX_TRIES ]; then
+        echo -e "\n${RED}❌ API não iniciou após $MAX_TRIES tentativas${NC}"
+        echo -e "\nLog completo de erros:"
+        tail -n 50 $LOG_DIR/api.log
         exit 1
     fi
     
     sleep 2
     COUNT=$((COUNT+1))
-    
-    # Mostrar erros do log
-    if [ $COUNT -eq $MAX_TRIES ]; then
-        echo -e "\n${RED}❌ API não iniciou após várias tentativas${NC}"
-        echo -e "\nÚltimas linhas do log:"
-        tail -n 20 $LOG_DIR/api.log
-        exit 1
-    fi
 done
 
 # Verificar todos os serviços
