@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Redis
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
     
     # Limites e Timeouts
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))

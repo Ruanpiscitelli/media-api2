@@ -135,6 +135,14 @@ maxmemory 8gb
 maxmemory-policy allkeys-lru
 EOF
 
+# Gerar senha segura para Redis
+REDIS_PASSWORD=$(openssl rand -hex 32)
+sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=$REDIS_PASSWORD/" $WORKSPACE/.env
+
+# Atualizar configuração do Redis
+sed -i '/requirepass/d' /etc/redis/redis.conf
+echo "requirepass $REDIS_PASSWORD" >> /etc/redis/redis.conf
+
 # Iniciar Redis diretamente
 redis-server /etc/redis/redis.conf --daemonize yes
 
@@ -441,6 +449,7 @@ MAX_RENDER_TIME=300
 MAX_VIDEO_LENGTH=300
 MAX_VIDEO_SIZE=100000000
 RENDER_TIMEOUT_SECONDS=300
+REDIS_PASSWORD=$REDIS_PASSWORD
 EOF
 
 # Carregar variáveis
