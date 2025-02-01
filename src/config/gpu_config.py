@@ -89,6 +89,12 @@ PIPELINE_CONFIG = {
         'high': 1,
         'normal': 2,
         'batch': 3                # Prioridade mínima
+    },
+    'workers_per_queue': {        # Número de workers por fila
+        'realtime': 4,           # Mais workers para tarefas em tempo real
+        'high': 3,               # Workers para tarefas prioritárias
+        'normal': 2,             # Workers para tarefas normais
+        'batch': 1               # Menos workers para processamento em lote
     }
 }
 

@@ -55,15 +55,21 @@ class RedisManager:
         
         for attempt in range(max_retries):
             try:
-                client = redis.Redis(
-                    host=settings.REDIS_HOST,
-                    port=settings.REDIS_PORT,
-                    password=settings.REDIS_PASSWORD,
-                    db=settings.REDIS_DB,
-                    socket_timeout=settings.REDIS_TIMEOUT,
-                    decode_responses=True,
-                    ssl=settings.REDIS_SSL
-                )
+                # Em desenvolvimento, não usar senha se não estiver configurada
+                redis_kwargs = {
+                    "host": settings.REDIS_HOST,
+                    "port": settings.REDIS_PORT,
+                    "db": settings.REDIS_DB,
+                    "socket_timeout": settings.REDIS_TIMEOUT,
+                    "decode_responses": True,
+                    "ssl": settings.REDIS_SSL
+                }
+                
+                # Só adicionar senha se estiver configurada
+                if settings.REDIS_PASSWORD:
+                    redis_kwargs["password"] = settings.REDIS_PASSWORD
+                
+                client = redis.Redis(**redis_kwargs)
                 client.ping()  # Testa conexão
                 return client
             except Exception as e:
@@ -82,11 +88,17 @@ def get_limiter() -> Limiter:
     
     if redis_client is None:
         logger.critical("Redis indisponível - Rate limiting pode não funcionar corretamente")
+    
+    # Construir URL do Redis com base nas configurações
+    redis_url = f"redis://"
+    if settings.REDIS_PASSWORD:
+        redis_url += f":{settings.REDIS_PASSWORD}@"
+    redis_url += f"{settings.REDIS_HOST}:{settings.REDIS_PORT}"
         
     return Limiter(
         key_func=get_remote_address,
         default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
-        storage_uri=f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+        storage_uri=redis_url
     )
 
 # Criar instância do limiter usando a factory function
