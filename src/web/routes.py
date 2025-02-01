@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, FastAPI
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -15,14 +15,16 @@ with open("docs/http_endpoints.md", "r", encoding='utf-8') as f:
     parser = EndpointParser(f.read())
     endpoints_data = parser.parse()
 
-# Montar arquivos estáticos
-router.mount("/static", StaticFiles(directory=static_path), name="static")
+# Criar sub-aplicação para a GUI na porta 8080
+gui_app = FastAPI()
+gui_app.mount("/static", StaticFiles(directory=static_path), name="static")
 
-@router.get("/")
+# Mover rotas para gui_app
+@gui_app.get("/")
 async def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
-@router.get("/endpoints/{section}")
+@gui_app.get("/endpoints/{section}")
 async def endpoints(request: Request, section: str):
     if section not in endpoints_data:
         return templates.TemplateResponse("endpoints.html", {
@@ -40,7 +42,7 @@ async def endpoints(request: Request, section: str):
         "endpoints": data["endpoints"]
     })
 
-@router.get("/auth")
+@gui_app.get("/auth")
 async def auth_page(request: Request):
     return templates.TemplateResponse("auth.html", {"request": request})
 

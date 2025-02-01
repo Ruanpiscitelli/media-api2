@@ -703,3 +703,31 @@ curl localhost:8000/health
 # Verificar se o token foi gerado
 cat /workspace/token.txt
 ```
+
+## Acessando a GUI
+
+### Método 1: Via Vast.ai Dashboard
+1. Acesse https://vast.ai/console/instances/
+2. Encontre sua instância
+3. Procure pela porta 8080 nos "exposed ports"
+4. Clique no link fornecido ou use a URL: `http://[ip-instance]:[port]`
+
+### Método 2: Via Túnel SSH
+```bash
+# Criar túnel SSH
+ssh -L 8080:localhost:8080 root@[ip-instance] -p [porta-ssh]
+
+# Agora acesse no navegador:
+# http://localhost:8080
+```
+
+### Endpoints Disponíveis
+- `/` - Página inicial com documentação
+- `/auth` - Página de autenticação
+- `/endpoints/[seção]` - Documentação específica de cada seção
+  - `/endpoints/auth` - Autenticação
+  - `/endpoints/comfy` - ComfyUI
+  - `/endpoints/image` - Geração de Imagem
+  - `/endpoints/video` - Geração de Vídeo
+  - `/endpoints/speech` - Síntese de Voz
+  - `/endpoints/system` - Sistema

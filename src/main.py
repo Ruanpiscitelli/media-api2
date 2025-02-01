@@ -600,7 +600,18 @@ async def log_requests(request: Request, call_next):
 
 # Incluir rotas da GUI
 from src.web.routes import router as web_router
-app.include_router(web_router)
+from src.web.routes import gui_app
+
+# Iniciar servidor GUI na porta 8080
+import uvicorn
+from multiprocessing import Process
+
+def run_gui():
+    uvicorn.run(gui_app, host="0.0.0.0", port=8080)
+
+# Iniciar GUI em um processo separado
+gui_process = Process(target=run_gui)
+gui_process.start()
 
 if __name__ == "__main__":
     # Configuração para debugging
