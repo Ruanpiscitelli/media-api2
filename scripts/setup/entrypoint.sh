@@ -20,9 +20,25 @@ bind 127.0.0.1
 port 6379
 maxmemory 8gb
 maxmemory-policy allkeys-lru
+daemonize yes
 EOF
 
-service redis-server restart
+# Iniciar Redis em background
+redis-server /etc/redis/redis.conf
+
+# Verificar se Redis iniciou
+echo "Aguardando Redis iniciar..."
+for i in {1..30}; do
+  if redis-cli ping > /dev/null 2>&1; then
+    echo "Redis iniciado com sucesso!"
+    break
+  fi
+  sleep 1
+  if [ $i -eq 30 ]; then
+    echo "Erro: Timeout aguardando Redis iniciar"
+    exit 1
+  fi
+done
 
 # 4. Configurar ambiente Python
 python3 -m venv /workspace/venv_clean
