@@ -1,110 +1,141 @@
 """
-Configurações globais da aplicação.
+Configuração unificada da aplicação com validação via Pydantic.
 """
-from pydantic_settings import BaseSettings
-import os
+
+from typing import Dict, List, Optional
+from pydantic import BaseSettings, Field, validator
 from pathlib import Path
-from typing import Optional, List, Union
-from pydantic import Field, validator
-from functools import lru_cache
-import json
+import os
+
+class GPUConfig(BaseSettings):
+    """Configurações de GPU"""
+    devices: List[int] = Field(default=[0,1,2,3], description="IDs das GPUs disponíveis")
+    temperature_limit: int = Field(default=85, description="Limite de temperatura em °C")
+    utilization_threshold: int = Field(default=95, description="Limite de utilização em %")
+    memory_headroom: int = Field(default=1024, description="Margem de segurança de VRAM em MB")
+    metrics_interval: int = Field(default=1, description="Intervalo de coleta de métricas em segundos")
+    
+    optimization: Dict = Field(default={
+        "enable_tf32": True,
+        "enable_cudnn_benchmarks": True
+    })
+    
+    priorities: Dict[str, List[int]] = Field(default={
+        "image": [0, 1],      # GPUs 0,1 prioritárias para imagem
+        "speech": [2],        # GPU 2 prioritária para áudio
+        "video": [3]          # GPU 3 prioritária para vídeo
+    })
+
+class RedisConfig(BaseSettings):
+    """Configurações do Redis"""
+    host: str = Field(default="localhost")
+    port: int = Field(default=6379)
+    db: int = Field(default=0)
+    password: Optional[str] = None
+    ssl: bool = Field(default=False)
+    socket_timeout: int = Field(default=5)
+    retry_on_timeout: bool = Field(default=True)
+    max_connections: int = Field(default=10)
+
+class CacheConfig(BaseSettings):
+    """Configurações de cache"""
+    ttl: int = Field(default=300, description="Tempo de vida padrão em segundos")
+    max_size: int = Field(default=1000, description="Número máximo de itens em cache")
+    
+    redis: RedisConfig = Field(default_factory=RedisConfig)
+
+class QueueConfig(BaseSettings):
+    """Configurações de fila"""
+    max_size: int = Field(default=1000)
+    timeout: int = Field(default=30)
+    retry_delay: int = Field(default=5)
+    max_retries: int = Field(default=3)
+    
+    priorities: Dict[str, int] = Field(default={
+        "realtime": 3,
+        "high": 2,
+        "normal": 1,
+        "low": 0
+    })
+
+class SecurityConfig(BaseSettings):
+    """Configurações de segurança"""
+    secret_key: str = Field(default="your-secret-key-here")
+    algorithm: str = Field(default="HS256")
+    access_token_expire_minutes: int = Field(default=30)
+    
+    rate_limits: Dict[str, Dict] = Field(default={
+        "default": {
+            "calls": 100,
+            "period": 60
+        },
+        "image": {
+            "calls": 50,
+            "period": 60
+        },
+        "video": {
+            "calls": 10,
+            "period": 60
+        }
+    })
+
+class PathConfig(BaseSettings):
+    """Configurações de caminhos"""
+    workspace: Path = Field(default=Path("/workspace"))
+    models: Path = Field(default=Path("/models"))
+    temp: Path = Field(default=Path("/tmp"))
+    logs: Path = Field(default=Path("/logs"))
+    
+    @validator("*")
+    def create_dirs(cls, v):
+        if isinstance(v, Path):
+            v.mkdir(parents=True, exist_ok=True)
+        return v
+
+class ModelConfig(BaseSettings):
+    """Configurações de modelos"""
+    sdxl_path: Path = Field(default=Path("/models/sdxl"))
+    fish_speech_path: Path = Field(default=Path("/models/fish_speech"))
+    upscaler_path: Path = Field(default=Path("/models/upscaler"))
+    
+    vram_requirements: Dict[str, float] = Field(default={
+        "sdxl": 8.5,
+        "fish_speech": 4.2,
+        "upscaler": 2.0
+    })
 
 class Settings(BaseSettings):
+    """Configuração global da aplicação"""
+    
     # Ambiente
-    ENVIRONMENT: str = Field(default="development")
-    DEBUG: bool = Field(default=True)
+    env: str = Field(default="development")
+    debug: bool = Field(default=True)
+    testing: bool = Field(default=False)
     
-    # Básico
-    PROJECT_NAME: str = Field(default="Media API")
-    VERSION: str = Field(default="2.0.0")
-    API_V2_STR: str = Field(default="/api/v2")
-    
-    # Segurança
-    SECRET_KEY: str = Field(default="development_key")
-    ALGORITHM: str = Field(default="HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
-    
-    # Database
-    DATABASE_URL: str = Field(default="sqlite:///./sql_app.db")
-    
-    # Redis
-    REDIS_HOST: str = Field(default="localhost")
-    REDIS_PORT: int = Field(default=6379)
-    REDIS_PASSWORD: str = Field(default="development_password")
-    REDIS_DB: int = Field(default=0)
-    REDIS_TIMEOUT: int = Field(default=5)
-    REDIS_SSL: bool = Field(default=False)
-    
-    # CORS
-    BACKEND_CORS_ORIGINS: Union[str, List[str]] = Field(default='["*"]')
+    # Servidor
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=8000)
+    workers: int = Field(default=1)
     
     # Logging
-    LOG_LEVEL: str = Field(default="debug")
+    log_level: str = Field(default="INFO")
+    json_logs: bool = Field(default=False)
     
-    # Limites
-    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
-    MEMORY_THRESHOLD_MB: int = Field(default=8192)
-    TEMP_FILE_MAX_AGE: int = Field(default=3600)
+    # Componentes
+    gpu: GPUConfig = Field(default_factory=GPUConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    queue: QueueConfig = Field(default_factory=QueueConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    paths: PathConfig = Field(default_factory=PathConfig)
+    models: ModelConfig = Field(default_factory=ModelConfig)
     
-    # ComfyUI
-    COMFY_API_URL: str = Field(default="http://localhost:8188/api")
-    COMFY_WS_URL: str = Field(default="ws://localhost:8188/ws")
-    COMFY_TIMEOUT: int = Field(default=30)
-    
-    # Renderização
-    MAX_CONCURRENT_RENDERS: int = Field(default=4)
-    MAX_RENDER_TIME: int = Field(default=300)
-    MAX_VIDEO_LENGTH: int = Field(default=300)
-    MAX_VIDEO_SIZE: int = Field(default=100000000)
-    RENDER_TIMEOUT_SECONDS: int = Field(default=300)
-    
-    # Diretórios
-    TEMP_DIR: Path = Field(default=Path("/workspace/temp"))
-    SUNO_OUTPUT_DIR: Path = Field(default=Path("/workspace/media/audio"))
-    SUNO_CACHE_DIR: Path = Field(default=Path("/workspace/cache/suno"))
-    SHORTS_OUTPUT_DIR: Path = Field(default=Path("/workspace/media/video"))
-
-    @validator("REDIS_PASSWORD")
-    def validate_redis_password(cls, v: str, values: dict) -> str:
-        if values.get("ENVIRONMENT") == "production" and not v:
-            raise ValueError("Redis password is required in production")
-        return v or "development_password"
-
-    @validator("DATABASE_URL")
-    def validate_database_url(cls, v: str) -> str:
-        if not v:
-            raise ValueError("DATABASE_URL não pode estar vazio")
-        return v
-
-    @validator("BACKEND_CORS_ORIGINS")
-    def validate_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return [v]
-        return v
-
-    @validator("TEMP_DIR", "SUNO_OUTPUT_DIR", "SUNO_CACHE_DIR", "SHORTS_OUTPUT_DIR")
-    def validate_directories(cls, v: Path) -> Path:
-        v.mkdir(parents=True, exist_ok=True)
-        if not os.access(v, os.W_OK):
-            raise ValueError(f"Directory {v} is not writable")
-        return v
-
-    @validator("MAX_CONCURRENT_RENDERS")
-    def validate_max_concurrent_renders(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("MAX_CONCURRENT_RENDERS deve ser maior que 0")
-        return v
-
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
-        extra = "allow"
 
-@lru_cache()
-def get_settings() -> Settings:
-    return Settings()
-
-settings = get_settings()
+# Instância global de configuração
+settings = Settings(
+    _env_file=os.getenv("ENV_FILE", ".env"),
+    _env_file_encoding="utf-8"
+)
