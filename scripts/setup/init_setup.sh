@@ -54,13 +54,14 @@ pip install --upgrade pip wheel setuptools
 # Instalar torch primeiro
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# Depois as outras dependências
-pip install -r $API_DIR/requirements/vast.txt
-pip install -r $API_DIR/requirements.txt
-
-# Instalar dependências do ComfyUI
+# Instalar dependências do ComfyUI primeiro
 cd $COMFY_DIR
 pip install -r requirements.txt
+
+# Depois as outras dependências
+cd $API_DIR
+pip install -r $API_DIR/requirements/vast.txt
+pip install -r $API_DIR/requirements.txt
 
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR

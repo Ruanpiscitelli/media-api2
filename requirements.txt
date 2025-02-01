@@ -55,7 +55,6 @@ pytorch-lightning>=2.0.9
 aiofiles>=23.2.1
 psutil>=5.9.5
 scipy>=1.11.3
-folder-paths>=0.1.0  # Para gerenciamento de modelos
 
 # Dependências de desenvolvimento
 pytest>=7.4.2
