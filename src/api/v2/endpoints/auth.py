@@ -6,9 +6,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.core.cache.manager import cache_manager
@@ -23,6 +24,7 @@ from src.api.v2.schemas.auth import (
 )
 from src.core.auth import get_current_user, AuthService
 from src.core.exceptions import AuthError, UserExistsError, PlanError
+from src.core.db.database import get_db
 
 # Configuração de logging
 logger = logging.getLogger(__name__)
