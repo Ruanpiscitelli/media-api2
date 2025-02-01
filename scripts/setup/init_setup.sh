@@ -176,6 +176,9 @@ fi
 # Instalar dependências críticas primeiro
 pip install slowapi fastapi uvicorn redis aioredis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
 
+# Instalar yt-dlp para download de vídeos
+pip install yt-dlp==2023.11.16
+
 # Depois as dependências de mídia
 pip install --no-cache-dir \
     moviepy==1.0.3 \
@@ -264,6 +267,7 @@ try:
     import numpy
     import einops
     import pytorch_lightning
+    import yt_dlp
     print("✅ Todas as dependências críticas estão instaladas")
 except ImportError as e:
     print(f"❌ Erro ao importar dependências: {e}")
