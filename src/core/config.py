@@ -3,7 +3,7 @@ Configuração unificada da aplicação com validação via Pydantic.
 """
 
 from typing import Dict, List, Optional
-from pydantic import Field, field_validator, validator
+from pydantic import Field, field_validator, validator, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
@@ -183,7 +183,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = None
     REDIS_SSL: bool = Field(default=False)
     REDIS_TIMEOUT: int = Field(default=5)
-    REDIS_URL: str = "redis://localhost:6379/0"  # ou use uma variável de ambiente
+    REDIS_MAX_CONNECTIONS: int = Field(default=10)
     
     # Rate Limiting
     RATE_LIMIT_DEFAULT: int = Field(default=100)  # requisições por hora
@@ -294,10 +294,11 @@ class Settings(BaseSettings):
         return v
     
     @property
-    def REDIS_URL(self) -> str:
-        """Gera URL de conexão Redis"""
+    def REDIS_URL(self) -> RedisDsn:
+        """Gera URL de conexão Redis validada pelo Pydantic"""
         auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        protocol = "rediss" if self.REDIS_SSL else "redis"
+        return RedisDsn(f"{protocol}://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}")
     
     def check_config(self):
         """Valida configurações críticas"""

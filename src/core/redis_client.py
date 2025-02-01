@@ -19,12 +19,18 @@ async def init_redis_pool() -> aioredis.Redis:
     global redis_pool
     
     if redis_pool is None:
-        redis_pool = await aioredis.from_url(
-            settings.REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True,
-            max_connections=10
-        )
+        try:
+            redis_pool = await aioredis.from_url(
+                str(settings.REDIS_URL),
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=settings.REDIS_MAX_CONNECTIONS,
+                socket_timeout=settings.REDIS_TIMEOUT
+            )
+            logger.info("✅ Conexão Redis estabelecida com sucesso")
+        except Exception as e:
+            logger.error(f"❌ Erro ao conectar ao Redis: {e}")
+            raise
         
     return redis_pool
 
@@ -48,6 +54,7 @@ async def close_redis_pool() -> None:
     if redis_pool is not None:
         await redis_pool.close()
         redis_pool = None
+        logger.info("✅ Conexão Redis fechada")
 
 async def retry_redis_operation(operation, max_retries=3):
     """Executa operação Redis com retry"""
