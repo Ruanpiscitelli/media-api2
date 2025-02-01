@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from src.core.rate_limit import rate_limiter
 import os
 import anyio
-from src.core.cache.manager import cache
+from src.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +33,9 @@ async def init_directories():
     try:
         directories = [
             settings.TEMP_DIR,
-            settings.SUNO_OUTPUT_DIR,
-            settings.SUNO_CACHE_DIR,
-            settings.SHORTS_OUTPUT_DIR,
-            Path("/workspace/logs"),
-            Path("/workspace/media"),
-            Path("/workspace/cache"),
-            Path("/workspace/models"),
+            settings.MEDIA_DIR,
+            settings.CACHE_DIR,
+            settings.MODELS_DIR,
         ]
         
         for directory in directories:
@@ -67,6 +63,9 @@ async def initialize_api():
         
         # Cache
         await cache.connect()
+        
+        # Diretórios
+        await init_directories()
         
         logger.info("✅ API pronta")
     except Exception as e:

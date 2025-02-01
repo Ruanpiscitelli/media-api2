@@ -29,4 +29,5 @@ class Cache:
         if self.redis:
             await self.redis.set(key, value, ex=expire)
 
+# Instância global
 cache = Cache() 
