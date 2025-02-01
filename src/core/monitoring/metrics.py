@@ -1,36 +1,93 @@
 """
 Métricas Prometheus centralizadas
 """
-from prometheus_client import Counter, Gauge, Histogram
-from typing import Dict
-
-# GPU Metrics
-GPU_METRICS: Dict[str, Gauge] = {
-    'utilization': Gauge('gpu_utilization', 'Utilização da GPU', ['gpu_id']),
-    'memory_used': Gauge('gpu_memory_used', 'VRAM utilizada', ['gpu_id']),
-    'temperature': Gauge('gpu_temperature', 'Temperatura da GPU', ['gpu_id']),
-    'task_count': Gauge('gpu_task_count', 'Número de tarefas na GPU', ['gpu_id']),
-    'nvlink_speed': Gauge('gpu_nvlink_speed', 'Velocidade NVLink', ['gpu_id', 'peer_id']),
-    'errors': Counter('gpu_errors_total', 'Total de erros da GPU', ['gpu_id'])
-}
+from prometheus_client import Counter, Histogram, Gauge
 
 # Cache Metrics
-CACHE_METRICS: Dict[str, Counter] = {
-    'hits': Counter('cache_hits_total', 'Total de cache hits', ['namespace']),
-    'misses': Counter('cache_misses_total', 'Total de cache misses', ['namespace']),
-    'errors': Counter('cache_errors_total', 'Total de erros de cache', ['namespace'])
+CACHE_METRICS = {
+    'hits': Counter(
+        'cache_hits',  # Removido _total para evitar duplicação
+        'Total de cache hits',
+        ['namespace']
+    ),
+    'misses': Counter(
+        'cache_misses',
+        'Total de cache misses',
+        ['namespace']
+    ),
+    'latency': Histogram(
+        'cache_operation_duration_seconds',
+        'Latência das operações de cache',
+        ['operation']
+    )
 }
 
-# API Metrics
-API_METRICS = {
-    'task_duration': Histogram(
-        'task_duration_seconds',
-        'Task processing duration in seconds',
-        ['task_type']
+# GPU Metrics
+GPU_METRICS = {
+    'memory': Gauge(
+        'gpu_memory_bytes',
+        'Uso de memória GPU em bytes',
+        ['device']
     ),
-    'tasks_queued': Gauge(
+    'utilization': Gauge(
+        'gpu_utilization_percent',
+        'Utilização da GPU em porcentagem',
+        ['device']
+    ),
+    'temperature': Gauge(
+        'gpu_temperature_celsius',
+        'Temperatura da GPU em Celsius',
+        ['device']
+    ),
+    'power': Gauge(
+        'gpu_power_watts',
+        'Consumo de energia da GPU em watts',
+        ['device']
+    ),
+    'errors': Counter(
+        'gpu_errors',
+        'Erros da GPU',
+        ['device', 'type']
+    )
+}
+
+# HTTP Metrics
+HTTP_METRICS = {
+    'requests': Counter(
+        'http_requests',
+        'Total de requisições HTTP',
+        ['method', 'endpoint', 'status']
+    ),
+    'latency': Histogram(
+        'http_request_duration_seconds',
+        'Latência das requisições HTTP',
+        ['method', 'endpoint']
+    ),
+    'errors': Counter(
+        'http_errors',
+        'Total de erros HTTP',
+        ['method', 'endpoint', 'error']
+    )
+}
+
+# Task Metrics
+TASK_METRICS = {
+    'queued': Gauge(
         'tasks_queued',
-        'Number of tasks currently in queue',
-        ['task_type']
+        'Tarefas na fila'
+    ),
+    'processing': Gauge(
+        'tasks_processing',
+        'Tarefas em processamento'
+    ),
+    'completed': Counter(
+        'tasks_completed',
+        'Total de tarefas completadas',
+        ['status']
+    ),
+    'duration': Histogram(
+        'task_duration_seconds',
+        'Duração das tarefas',
+        ['type']
     )
 } 

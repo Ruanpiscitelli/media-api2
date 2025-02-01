@@ -1,4 +1,21 @@
 """
+Sistema de monitoramento centralizado
+"""
+from .metrics import (
+    CACHE_METRICS,
+    GPU_METRICS,
+    HTTP_METRICS,
+    TASK_METRICS
+)
+
+__all__ = [
+    'CACHE_METRICS',
+    'GPU_METRICS',
+    'HTTP_METRICS',
+    'TASK_METRICS'
+]
+
+"""
 Métricas Prometheus para monitoramento da API
 """
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
