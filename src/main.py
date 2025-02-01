@@ -24,15 +24,13 @@ import psutil
 import gc
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi.security import HTTPBearer
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 import secrets
 import redis
 from redis.asyncio import Redis
 import redis.asyncio
+
 from src.core.rate_limit import limiter
 from src.core.config import settings
 from src.core.checks import run_system_checks
@@ -210,12 +208,6 @@ async def shutdown_tasks():
 # Configurar logger
 logger = setup_logging()
 
-# Configurar rate limiter
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
-)
-
 # Middleware de segurança
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adiciona headers de segurança às respostas."""
@@ -246,16 +238,37 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Usar ASGI middleware puro ao invés de BaseHTTPMiddleware para melhor performance
+# Middleware de rate limiting
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def rate_limit_middleware(request: Request, call_next):
+    """Middleware para aplicar rate limiting."""
+    try:
+        # Verifica se a rota deve ser limitada
+        if not getattr(request.state, "skip_rate_limit", False):
+            await limiter.is_rate_limited(request)
+        return await call_next(request)
+    except HTTPException as e:
+        if e.status_code == 429:  # Too Many Requests
+            return JSONResponse(
+                status_code=429,
+                content=e.detail
+            )
+        raise
+
+# Middleware de métricas
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Coleta métricas de requisições."""
+    start_time = time.time()
+    
+    # Incrementa contador de requisições
+    REQUEST_COUNT.inc()
+    
     response = await call_next(request)
-    response.headers.update({
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "X-XSS-Protection": "1; mode=block",
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
-    })
+    
+    # Registra latência
+    REQUEST_LATENCY.observe(time.time() - start_time)
+    
     return response
 
 # Configurar CORS de forma otimizada
@@ -268,65 +281,6 @@ app.add_middleware(
     expose_headers=["Content-Range", "Range"],  # Readicionado expose_headers
     max_age=3600,
 )
-
-# Configurar rate limiting global com Redis
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
-)
-
-# Configurar rate limiting
-app.state.limiter = limiter
-
-# Adicionar handler para RateLimitExceeded
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={
-            "detail": "Too many requests",
-            "retry_after": exc.retry_after
-        }
-    )
-
-# Middleware de rate limiting global
-@app.middleware("http")
-@limiter.limit("60/minute")  # Limite global de 60 requisições por minuto
-async def global_rate_limit(request: Request, call_next):
-    response = await call_next(request)
-    return response
-
-# Middleware de rate limiting específico por endpoint usando Redis
-async def endpoint_rate_limit_middleware(request: Request, call_next):
-    client_ip = request.client.host
-    endpoint = request.url.path
-    key = f"rate_limit:{client_ip}:{endpoint}"
-    
-    # Obter limite específico do endpoint ou usar padrão
-    limit = settings.RATE_LIMITS.get(endpoint, settings.DEFAULT_RATE_LIMIT)
-    window = 60  # janela de 60 segundos
-    
-    async with redis_client.pipeline(transaction=True) as pipe:
-        # Usar Redis Sorted Set para tracking preciso de timestamps
-        now = time.time()
-        pipe.zremrangebyscore(key, 0, now - window)  # Remover requests antigos
-        pipe.zcard(key)  # Contar requests atuais
-        pipe.zadd(key, {str(now): now})  # Adicionar request atual
-        pipe.expire(key, window)  # Definir TTL
-        _, current, _, _ = await pipe.execute()
-        
-    if current > limit:
-        raise RateLimitExceeded(
-            retry_after=window
-        )
-    
-    return await call_next(request)
-
-app.middleware("http")(endpoint_rate_limit_middleware)
-
-# Configurar handlers de erro
-app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
-app.add_exception_handler(429, limiter.error_handler)
 
 # Incluir rotas de forma otimizada
 app.include_router(
@@ -679,166 +633,6 @@ async def startup_event():
 
     # Validar configurações ao iniciar
     settings.check_config()
-
-async def rate_limit_middleware(request: Request, call_next):
-    client_ip = request.client.host
-    endpoint = request.url.path
-    key = f"rate_limit:{client_ip}:{endpoint}"
-    
-    # Adicionar diferentes limites por endpoint
-    limit = settings.RATE_LIMITS.get(endpoint, settings.DEFAULT_RATE_LIMIT)
-    
-    async with redis_client.pipeline(transaction=True) as pipe:
-        current = await pipe.incr(key)
-        if current == 1:
-            await pipe.expire(key, 60)
-        await pipe.execute()
-        
-    if current > limit:
-        raise HTTPException(
-            status_code=429, 
-            detail={
-                "error": "Too many requests",
-                "limit": limit,
-                "reset": await redis_client.ttl(key)
-            }
-        )
-
-app.middleware("http")(rate_limit_middleware)
-
-app.add_middleware(
-    ErrorHandlerMiddleware,
-    handlers={
-        500: handle_gpu_errors,
-        429: handle_rate_limit
-    }
-)
-
-# Instanciar managers
-workflow_manager = ComfyWorkflowManager()
-gpu_manager = GPUManager()
-queue_manager = QueueManager()
-
-@app.post("/v2/comfy/execute", tags=["ComfyUI"])
-async def execute_workflow(
-    workflow_request: WorkflowExecutionRequest,
-    background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user)
-):
-    """
-    Executa um workflow do ComfyUI.
-    
-    - Valida o workflow
-    - Aloca recursos (GPU)
-    - Executa em background
-    - Retorna ID para acompanhamento
-    """
-    try:
-        # Validar workflow
-        if not await workflow_manager.validate_workflow(workflow_request.workflow):
-            raise HTTPException(400, "Workflow inválido")
-            
-        # Estimar recursos necessários
-        resources = await gpu_manager.estimate_resources(workflow_request.workflow)
-        if not resources:
-            raise HTTPException(500, "Falha ao estimar recursos necessários")
-            
-        # Alocar GPU
-        gpu_id = await gpu_manager.allocate_gpu(
-            task_id=str(uuid.uuid4()),  # Gerar ID único para a tarefa
-            vram_required=resources["vram_required"],
-            priority=workflow_request.priority
-        )
-        
-        if gpu_id is None:
-            raise HTTPException(503, "Nenhuma GPU disponível")
-            
-        # Criar tarefa
-        task_id = await queue_manager.create_task(
-            workflow=workflow_request.workflow,
-            user_id=current_user.id,
-            gpu_id=gpu_id,
-            priority=workflow_request.priority
-        )
-        
-        # Executar em background
-        background_tasks.add_task(
-            workflow_manager.execute_workflow,
-            workflow=workflow_request.workflow,
-            prompt_inputs=workflow_request.inputs,
-            client_id=task_id
-        )
-        
-        return {
-            "task_id": task_id,
-            "status": "queued",
-            "estimated_time": resources["estimated_time"],
-            "gpu_id": gpu_id
-        }
-        
-    except Exception as e:
-        logger.error(f"Erro executando workflow: {e}")
-        raise HTTPException(500, str(e))
-
-@app.get("/v2/comfy/workflows")
-async def list_workflows(current_user = Depends(get_current_user)):
-    """Lista workflows disponíveis"""
-    workflows = []
-    for path in Path("workflows").glob("*.json"):
-        with open(path) as f:
-            workflow = json.load(f)
-            workflows.append({
-                "name": path.stem,
-                "description": workflow.get("description"),
-                "created_at": path.stat().st_mtime
-            })
-    return {"workflows": workflows}
-
-@app.post("/v2/comfy/workflows/{name}")
-async def save_workflow(
-    name: str,
-    workflow: Dict,
-    current_user = Depends(get_current_user)
-):
-    """Salva um novo workflow"""
-    try:
-        # Validar workflow
-        if not await workflow_manager.validate_workflow(workflow):
-            raise HTTPException(400, "Workflow inválido")
-            
-        # Salvar
-        path = Path("workflows") / f"{name}.json"
-        with open(path, "w") as f:
-            json.dump(workflow, f, indent=2)
-            
-        return {"status": "success"}
-        
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-# Registrar handlers de erro
-app.add_exception_handler(APIError, api_error_handler)
-app.add_exception_handler(RequestValidationError, validation_error_handler)
-
-# Middleware para métricas
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    
-    # Registrar métricas
-    REQUEST_COUNT.labels(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code
-    ).inc()
-    
-    REQUEST_LATENCY.labels(
-        method=request.method,
-        endpoint=request.url.path
-    ).observe(time.time() - start_time)
-    
-    return response
 
 if __name__ == "__main__":
     import uvicorn
