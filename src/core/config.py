@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     DATABASE_PORT: int = 5432
     DATABASE_NAME: str = "mediaapi"
     DATABASE_URL: str = f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+    SQL_DEBUG: bool = False
+    SQL_POOL_SIZE: int = 5
+    SQL_MAX_OVERFLOW: int = 10
+    SQL_POOL_TIMEOUT: int = 30
     
     # Redis
     REDIS_HOST: str = "localhost"
