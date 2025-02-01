@@ -30,6 +30,34 @@ check_requirements() {
     nvidia-smi --query-gpu=gpu_name,memory.total,driver_version --format=csv
 }
 
+# Função para verificar ambiente virtual
+check_venv() {
+    echo "Verificando ambiente virtual..."
+    if [ -d "/workspace/venv_clean" ]; then
+        # Verificar se o ambiente virtual está funcionando
+        source /workspace/venv_clean/bin/activate 2>/dev/null || return 1
+        
+        # Tentar usar python do venv
+        if /workspace/venv_clean/bin/python3 -c "import sys; sys.exit(0)" 2>/dev/null; then
+            echo "Ambiente virtual existente está OK"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Função para verificar pip
+check_pip() {
+    if [ -f "/workspace/venv_clean/bin/pip" ]; then
+        # Verificar se pip está funcionando
+        if /workspace/venv_clean/bin/pip --version >/dev/null 2>&1; then
+            echo "Pip já está instalado e funcionando"
+            return 0
+        fi
+    fi
+    return 1
+}
+
 # Limpar processos e arquivos antigos
 cleanup
 echo "Limpando processos anteriores..."
@@ -76,24 +104,53 @@ while [ $attempt -le $max_attempts ]; do
 done
 
 # Configurar ambiente Python
-if [ -d "/workspace/venv_clean" ]; then
-    echo "Removendo ambiente virtual antigo..."
+if ! check_venv; then
+    echo "Criando novo ambiente virtual..."
     rm -rf /workspace/venv_clean
+    python3 -m venv --without-pip /workspace/venv_clean
 fi
 
-echo "Criando novo ambiente virtual..."
-python3 -m venv --without-pip /workspace/venv_clean
 source /workspace/venv_clean/bin/activate
 
-# Instalar pip manualmente
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+# Instalar/atualizar pip apenas se necessário
+if ! check_pip; then
+    echo "Instalando pip..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+else
+    echo "Atualizando pip..."
+    python3 -m pip install --no-cache-dir -U pip
+fi
 
-# Instalar dependências Python
-echo "Instalando dependências Python..."
-python3 -m pip install --no-cache-dir -U pip setuptools wheel
-python3 -m pip install --no-cache-dir "uvicorn[standard]>=0.23.0"
-python3 -m pip install --no-cache-dir -r requirements/vast.txt
-python3 -m pip install --no-cache-dir -r requirements.txt
+# Verificar dependências instaladas
+check_deps() {
+    local pkg=$1
+    if python3 -m pip freeze | grep -i "^$pkg==" >/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Instalar dependências Python apenas se necessário
+echo "Verificando dependências Python..."
+
+# Sempre atualizar setuptools e wheel
+python3 -m pip install --no-cache-dir -U setuptools wheel
+
+# Verificar e instalar uvicorn
+if ! check_deps "uvicorn"; then
+    echo "Instalando uvicorn..."
+    python3 -m pip install --no-cache-dir "uvicorn[standard]>=0.23.0"
+fi
+
+# Instalar dependências dos requirements apenas se necessário
+if [ ! -f "/workspace/venv_clean/.requirements_installed" ]; then
+    echo "Instalando dependências dos requirements..."
+    python3 -m pip install --no-cache-dir -r requirements/vast.txt
+    python3 -m pip install --no-cache-dir -r requirements.txt
+    touch /workspace/venv_clean/.requirements_installed
+else
+    echo "Dependências dos requirements já instaladas"
+fi
 
 # Criar diretórios do projeto
 mkdir -p /workspace/{logs,media,models} \

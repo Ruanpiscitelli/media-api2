@@ -1,47 +1,58 @@
 """
 Cliente Redis com pool de conexões
 """
-import aioredis
+from redis.asyncio import Redis, ConnectionPool
 from typing import Optional
 from src.core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-redis_pool: Optional[aioredis.Redis] = None
+redis_pool: Optional[ConnectionPool] = None
+redis_client: Optional[Redis] = None
 
-async def create_redis_pool() -> aioredis.Redis:
+async def create_redis_pool() -> Redis:
     """Cria pool de conexões Redis"""
-    global redis_pool
+    global redis_pool, redis_client
     
     if redis_pool is None:
         try:
-            redis_pool = await aioredis.create_redis_pool(
-                f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}",
-                password=settings.REDIS_PASSWORD,
-                db=settings.REDIS_DB,
-                encoding="utf-8",
-                maxsize=20,  # Máximo de conexões no pool
-                timeout=settings.REDIS_TIMEOUT,
-                ssl=settings.REDIS_SSL
+            redis_pool = ConnectionPool(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                db=settings.redis_db,
+                password=settings.redis_password,
+                ssl=settings.redis_ssl,
+                decode_responses=True,
+                max_connections=20,
+                socket_timeout=settings.redis_timeout
             )
+            
+            redis_client = Redis(connection_pool=redis_pool)
             logger.info("Pool Redis criado com sucesso")
+            
         except Exception as e:
             logger.error(f"Erro criando pool Redis: {e}")
             raise
             
-    return redis_pool
+    return redis_client
 
-async def get_redis() -> aioredis.Redis:
-    """Obtém conexão do pool"""
-    if redis_pool is None:
+async def get_redis_client() -> Redis:
+    """Obtém cliente Redis do pool"""
+    if redis_client is None:
         await create_redis_pool()
-    return redis_pool
+    return redis_client
+
+async def get_redis() -> Redis:
+    """Alias para get_redis_client para manter compatibilidade"""
+    return await get_redis_client()
 
 async def close_redis_pool():
     """Fecha pool de conexões"""
-    global redis_pool
+    global redis_pool, redis_client
+    if redis_client is not None:
+        await redis_client.close()
+        redis_client = None
     if redis_pool is not None:
-        redis_pool.close()
-        await redis_pool.wait_closed()
-        redis_pool = None 
+        await redis_pool.disconnect()
+        redis_pool = None
