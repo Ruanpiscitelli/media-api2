@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     TEMP_DIR: Path = BASE_DIR / "temp"
     LOGS_DIR: Path = BASE_DIR / "logs"
     
+    # Database
+    DATABASE_USER: str = "postgres"
+    DATABASE_PASSWORD: str = "postgres"
+    DATABASE_HOST: str = "localhost"
+    DATABASE_PORT: int = 5432
+    DATABASE_NAME: str = "mediaapi"
+    DATABASE_URL: str = f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+    
     # Redis
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -48,6 +56,10 @@ class Settings(BaseSettings):
     # GPU
     GPU_MEMORY_FRACTION: float = 0.8
     GPU_TEMP_LIMIT: int = 85
+    
+    # Segurança
+    SECRET_KEY: str = "your-secret-key-here"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     class Config:
         env_file = ".env"
