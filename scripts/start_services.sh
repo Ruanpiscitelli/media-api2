@@ -27,6 +27,12 @@ check_service() {
 
 # Verificar Redis
 echo -e "\n${BLUE}Verificando Redis...${NC}"
+
+# Criar diretórios necessários
+mkdir -p /workspace/outputs/shorts
+mkdir -p /workspace/cache/shorts
+mkdir -p /workspace/uploads/shorts
+
 if redis-cli ping > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Redis está respondendo${NC}"
 else

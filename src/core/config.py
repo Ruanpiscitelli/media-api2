@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     TEMP_DIR: Path = Path("/workspace/temp")
     SUNO_OUTPUT_DIR: Path = Path("/workspace/outputs/suno")
     SUNO_CACHE_DIR: Path = Path("/workspace/cache/suno")
+    SHORTS_OUTPUT_DIR: Path = Path("/workspace/outputs/shorts")
+    SHORTS_CACHE_DIR: Path = Path("/workspace/cache/shorts")
+    SHORTS_UPLOAD_DIR: Path = Path("/workspace/uploads/shorts")
     
     # Redis
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
