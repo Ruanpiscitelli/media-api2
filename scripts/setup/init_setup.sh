@@ -195,6 +195,7 @@ apt-get install -y --allow-change-held-packages libcudnn8=8.9.7.29-1+cuda12.2
 
 # Atualizar variáveis de ambiente
 sed -i 's/cuda-11.8/cuda-12.1/g' /etc/bash.bashrc
+echo '[ -n "$BASH" ] && shopt -s histappend' >> /etc/bash.bashrc
 . /etc/bash.bashrc
 
 # Instalar torch primeiro
