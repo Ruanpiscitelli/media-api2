@@ -185,7 +185,7 @@ Os modelos não são incluídos no repositório devido ao tamanho. Para baixar:
 # Execute o script de download
 ./scripts/download_models.sh
 ```
-
+d
 Ou baixe manualmente:
 - SDXL Base: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0
 - SDXL Refiner: https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0
