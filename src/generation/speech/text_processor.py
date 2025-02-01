@@ -11,6 +11,7 @@ import phonemizer
 from phonemizer.backend import EspeakBackend
 from phonemizer.separator import Separator
 from num2words import num2words
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -114,27 +115,28 @@ class TextProcessor:
             logger.error(f"Erro carregando detector de idioma: {e}")
             raise
             
-    def _load_phonemizer(self) -> EspeakBackend:
-        """
-        Carrega e configura o phonemizer.
-        
-        Returns:
-            EspeakBackend: Backend configurado do phonemizer
-        """
+    def _load_phonemizer(self):
+        """Carrega e configura o phonemizer"""
         try:
-            # Configurar backend do phonemizer
+            # Criar separador personalizado
+            separator = Separator(
+                word=' ',
+                syllable='-',
+                phone='|'
+            )
+            
+            # Configurar backend espeak
             return EspeakBackend(
-                language="pt-BR",
+                language='pt-br',
                 preserve_punctuation=True,
                 with_stress=True,
-                separator=Separator(
-                    word=' ',
-                    syllable='-',
-                    phone='|'
-                )
+                punctuation_marks=';:,.!?¡¿—…"«»""()',
+                language_switch='remove-flags',
+                words_mismatch='ignore',
+                separator=separator  # Usar objeto Separator
             )
         except Exception as e:
-            logger.error(f"Erro ao carregar phonemizer: {e}")
+            logger.error(f"Erro carregando phonemizer: {e}")
             raise
             
     def process_text(self, text: str, language: Optional[str] = None) -> Dict:
@@ -213,9 +215,8 @@ class TextProcessor:
         """Converte tokens em fonemas."""
         try:
             text = " ".join(tokens)
-            phonemes = phonemizer.phonemize(
+            phonemes = self.phonemizer.phonemize(
                 text,
-                backend=self.phonemizer,
                 strip=True
             )
             return phonemes.split()
@@ -273,3 +274,13 @@ class TextProcessor:
                 'intonation': [],
                 'language': language
             }
+
+    def _clean_text(self, text: str) -> str:
+        """Limpa e normaliza texto"""
+        # Remover espaços extras
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Normalizar pontuação
+        text = re.sub(r'[.]{2,}', '...', text)
+        
+        return text.strip()
