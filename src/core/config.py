@@ -3,7 +3,7 @@ Configuração unificada da aplicação com validação via Pydantic.
 """
 
 from typing import Dict, List, Optional
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
@@ -266,7 +266,7 @@ class Settings(BaseSettings):
     )
     
     @validator("SDXL_MODEL_PATH", "SDXL_VAE_PATH")
-    def validate_model_paths(cls, v):
+    def validate_paths(cls, v):
         if not v or not v.exists():
             raise ValueError(f"Arquivo de modelo não encontrado: {v}")
         return v
