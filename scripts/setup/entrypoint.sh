@@ -182,26 +182,74 @@ done
 # 8. Iniciar API
 cd /workspace/media-api2
 
+# Criar arquivo .env se não existir
+if [ ! -f .env ]; then
+    echo "Criando arquivo .env..."
+    cat > .env << EOF
+DEBUG=true
+ENVIRONMENT=development
+SECRET_KEY=your-secret-key-here
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+ALLOWED_HOSTS=["*"]
+CORS_ORIGINS=["*"]
+LOG_LEVEL=debug
+EOF
+fi
+
 # Criar diretório de logs se não existir
 mkdir -p /workspace/logs
 touch /workspace/logs/{api,redis,prometheus,grafana}.log
 
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) \
-    --log-level info --log-file /workspace/logs/api.log &
+# Verificar se o ambiente virtual está ativado
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Ativando ambiente virtual..."
+    source /workspace/venv_clean/bin/activate
+fi
+
+# Verificar se as dependências estão instaladas
+echo "Verificando dependências da API..."
+pip install -r requirements/vast.txt
+pip install -r requirements.txt
+
+# Configurar variáveis de ambiente necessárias
+export PYTHONPATH=/workspace/media-api2:$PYTHONPATH
+export CUDA_VISIBLE_DEVICES=0
+
+echo "Iniciando API..."
+nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1 \
+    --log-level debug --reload --log-file /workspace/logs/api.log 2>&1 &
 API_PID=$!
 
 # Verificar se API iniciou
 echo "Aguardando API iniciar..."
 for i in {1..30}; do
-  if curl -s http://localhost:8000/health > /dev/null; then
-    echo "API iniciada com sucesso!"
-    break
-  fi
-  sleep 1
-  if [ $i -eq 30 ]; then
-    echo "Erro: Timeout aguardando API iniciar"
-    exit 1
-  fi
+    echo "Tentativa $i de 30..."
+    if curl -s http://localhost:8000/health > /dev/null; then
+        echo "API iniciada com sucesso!"
+        break
+    fi
+    # Verificar logs para diagnóstico
+    if [ $i -eq 15 ]; then
+        echo "Logs da API até agora:"
+        tail -n 50 /workspace/logs/api.log
+        echo "Tentando reiniciar API..."
+        kill $API_PID 2>/dev/null
+        wait $API_PID 2>/dev/null
+        nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1 \
+            --log-level debug --reload --log-file /workspace/logs/api.log 2>&1 &
+        API_PID=$!
+    fi
+    sleep 1
+    if [ $i -eq 30 ]; then
+        echo "Erro: Timeout aguardando API iniciar. Logs:"
+        tail -n 100 /workspace/logs/api.log
+        echo "Status do processo:"
+        ps aux | grep uvicorn
+        exit 1
+    fi
 done
 
 echo "Setup concluído! Serviços iniciados:"

@@ -4,7 +4,7 @@ Configurações globais da aplicação.
 from pydantic_settings import BaseSettings
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import torch
 from pydantic import validator
 from pydantic import ConfigDict
@@ -105,8 +105,8 @@ class Settings(BaseSettings):
         return v
 
     @validator("REDIS_PASSWORD")
-    def validate_redis_password(cls, v: str) -> str:
-        if not v and not settings.DEBUG:
+    def validate_redis_password(cls, v, values):
+        if not v and not values.get('DEBUG', False):
             raise ValueError("Redis password is required in production")
         return v
 
