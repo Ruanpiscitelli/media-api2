@@ -51,24 +51,55 @@ python3 -m venv $WORKSPACE/venv_clean
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
 
+# Verificar versão do Python
+python --version
+
 # Instalar torch primeiro
+echo "Instalando PyTorch..."
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Instalar dependências do ComfyUI primeiro
+echo "Instalando dependências do ComfyUI..."
 cd $COMFY_DIR
 pip install -r requirements.txt
 
 # Depois as outras dependências
+echo "Instalando dependências da API..."
 cd $API_DIR
 pip install -r $API_DIR/requirements/vast.txt
 pip install -r $API_DIR/requirements.txt
 
+# Verificar instalação
+python -c "import torch; print(f'PyTorch instalado: {torch.__version__}')"
+python -c "import fastapi; print(f'FastAPI instalado: {fastapi.__version__}')"
+
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR
+
+# Garantir que nenhuma instância antiga esteja rodando
+pkill -f "uvicorn" || true
+
+# Iniciar API com log mais detalhado
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) > $WORKSPACE/logs/api.log 2>&1 &
 
-# Aguardar API iniciar
-sleep 5
+# Aguardar API iniciar (com timeout)
+echo "Aguardando API iniciar..."
+MAX_TRIES=30
+COUNT=0
+while ! curl -s http://localhost:8000/health > /dev/null && [ $COUNT -lt $MAX_TRIES ]; do
+    echo "Tentativa $((COUNT+1)) de $MAX_TRIES..."
+    sleep 2
+    COUNT=$((COUNT+1))
+done
+
+if [ $COUNT -eq $MAX_TRIES ]; then
+    echo "Erro: API não iniciou após $MAX_TRIES tentativas"
+    echo "Últimas linhas do log:"
+    tail -n 20 $WORKSPACE/logs/api.log
+    exit 1
+fi
+
+echo "API iniciada com sucesso!"
 
 echo -e "${BLUE}7. Criando usuário padrão...${NC}"
 curl -X POST http://localhost:8000/api/v1/auth/register \
