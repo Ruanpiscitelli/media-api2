@@ -150,22 +150,7 @@ source "$VENV_DIR/bin/activate"
 log "Verificando e instalando dependências..."
 pip install --no-cache-dir -r requirements/base.txt
 
-# Verificar instalação do aiohttp
-python3 -c "import aiohttp" || {
-    echo "Instalando aiohttp..."
-    pip install --no-cache-dir aiohttp[speedups]
-}
-
-# Instalar dependências
-log "Instalando dependências..."
-pip install -r "$API_DIR/scripts/setup/requirements.txt"
-
-# Instalar dependências do projeto
-log "Instalando dependências do projeto..."
-pip install -r "$API_DIR/requirements/vast.txt"
-
-# Verificar dependências
-log "Verificando dependências críticas..."
+# Verificar dependências críticas...
 python "$API_DIR/scripts/check_models.py"
 
 # Verificar e instalar dependências

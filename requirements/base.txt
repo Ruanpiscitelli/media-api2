@@ -52,12 +52,6 @@ pyyaml>=6.0.1
 tenacity>=8.2.3
 structlog>=23.1.0
 
-# ComfyUI e dependências
-git+https://github.com/comfyanonymous/ComfyUI.git
-accelerate>=0.23.0
-safetensors>=0.4.0
-xformers>=0.0.22
-
 # Clientes HTTP
 aiohttp>=3.9.1
 httpx>=0.24.0
