@@ -180,7 +180,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_PASSWORD: Optional[str] = None
+    REDIS_PASSWORD: str = ""  # Deixe vazio se não usar senha
     REDIS_SSL: bool = Field(default=False)
     REDIS_TIMEOUT: int = Field(default=5)
     REDIS_MAX_CONNECTIONS: int = Field(default=10)
