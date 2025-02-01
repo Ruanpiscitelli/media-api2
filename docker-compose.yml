@@ -8,6 +8,7 @@ services:
     ports:
       - "8000:8000"
       - "8188:8188"
+      - "8001:8001"
     volumes:
       - ./models:/app/models
       - ./custom_nodes:/app/custom_nodes

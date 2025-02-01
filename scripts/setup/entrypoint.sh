@@ -11,6 +11,24 @@ cleanup() {
     rm -rf /workspace/grafana-*
     rm -rf /workspace/*.deb
     rm -rf /workspace/dcgm-*
+    
+    # Limpar processos anteriores de forma mais robusta
+    echo "Limpando processos anteriores..."
+    pkill -f "uvicorn" || true
+    pkill -f "python main.py" || true
+    pkill -f "redis-server" || true
+    pkill -f "prometheus" || true
+    
+    # Aguardar processos terminarem
+    sleep 2
+    
+    # Verificar se ainda há processos
+    if pgrep -f "uvicorn|python main.py|redis-server" > /dev/null; then
+        echo "Forçando término dos processos..."
+        pkill -9 -f "uvicorn" || true
+        pkill -9 -f "python main.py" || true
+        pkill -9 -f "redis-server" || true
+    fi
 }
 
 # Função para verificar requisitos do sistema (GPU etc.)
@@ -58,17 +76,14 @@ check_pip() {
     return 1
 }
 
-# Limpar processos e arquivos antigos
+# Limpar ambiente
 cleanup
-echo "Limpando processos anteriores..."
-pkill -f uvicorn || true
-redis-cli shutdown || true
-sleep 2
 
 # Verificar requisitos
 check_requirements
 
-# Configurar Redis básico
+# Configurar Redis com timeout
+echo "Configurando Redis..."
 mkdir -p /var/log/redis
 cat > /etc/redis/redis.conf << EOF
 bind 127.0.0.1
@@ -79,28 +94,34 @@ daemonize yes
 pidfile /var/run/redis/redis-server.pid
 logfile /var/log/redis/redis-server.log
 dir /var/lib/redis
+timeout 300
 EOF
 
 # Criar diretórios necessários para o Redis
 mkdir -p /var/run/redis /var/lib/redis
 chown -R redis:redis /var/run/redis /var/lib/redis /var/log/redis
 
-# Iniciar Redis
+# Iniciar Redis com verificação de erro
 echo "Iniciando Redis..."
-redis-server /etc/redis/redis.conf
+if ! redis-server /etc/redis/redis.conf; then
+    echo "Erro ao iniciar Redis"
+    exit 1
+fi
 
-# Aguardar Redis iniciar
-echo "Aguardando Redis iniciar..."
+# Verificar Redis com timeout
+echo "Verificando Redis..."
 max_attempts=30
-attempt=1
-while [ $attempt -le $max_attempts ]; do
+for ((i=1; i<=max_attempts; i++)); do
     if redis-cli ping | grep -q "PONG"; then
         echo "Redis iniciado com sucesso!"
         break
     fi
-    echo "Tentativa $attempt de $max_attempts..."
+    if [ $i -eq $max_attempts ]; then
+        echo "Timeout ao aguardar Redis"
+        exit 1
+    fi
+    echo "Tentativa $i de $max_attempts..."
     sleep 1
-    attempt=$((attempt+1))
 done
 
 # Configurar ambiente Python
@@ -155,46 +176,80 @@ fi
 # Adicionar na seção de instalação de dependências
 python3 -m pip install --no-cache-dir aiosqlite
 
-# Criar diretórios do projeto
-mkdir -p /workspace/{logs,media,models} \
-        /workspace/media/{audio,images,video}
+# Criar diretórios necessários
+echo "Criando diretórios..."
+mkdir -p /workspace/{logs,media,models,cache} \
+        /workspace/media/{audio,images,video} \
+        /workspace/cache/{temp,uploads}
 
 # Configurar variáveis de ambiente
 export PYTHONPATH=/workspace/media-api2
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
-# Iniciar API
-echo "Iniciando API..."
-python -m uvicorn src.main:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --workers 4 \
-    --log-level info \
-    > /workspace/logs/api.log 2>&1 &
-
-# Verificar se API iniciou
-echo "Verificando API..."
-for i in {1..30}; do
-    if curl -s http://localhost:8000/health | grep -q "healthy"; then
-        echo "API iniciada com sucesso!"
-        break
+# Verificar portas em uso
+echo "Verificando portas em uso..."
+for port in 8000 8001 8080 8188; do
+    if netstat -tuln | grep ":$port " > /dev/null; then
+        echo "Porta $port já está em uso. Encerrando processo..."
+        fuser -k $port/tcp || true
     fi
-    sleep 1
 done
 
-# Script simples de monitoramento
-while true; do
+# Iniciar API com retry
+echo "Iniciando API..."
+max_retries=3
+retry_count=0
+
+while [ $retry_count -lt $max_retries ]; do
+    python -m uvicorn src.main:app \
+        --host 0.0.0.0 \
+        --port 8000 \
+        --workers 4 \
+        --log-level info \
+        > /workspace/logs/api.log 2>&1 &
+    
+    # Guardar PID
+    API_PID=$!
+    
+    # Verificar se API iniciou
+    echo "Verificando API..."
+    for i in {1..30}; do
+        if curl -s http://localhost:8000/health | grep -q "healthy"; then
+            echo "API iniciada com sucesso!"
+            break 2  # Sai dos dois loops
+        fi
+        
+        # Verificar se processo morreu
+        if ! kill -0 $API_PID 2>/dev/null; then
+            echo "Processo da API morreu, tentando novamente..."
+            retry_count=$((retry_count + 1))
+            sleep 5
+            break
+        fi
+        
+        sleep 1
+    done
+    
+    if [ $retry_count -eq $max_retries ]; then
+        echo "Falha ao iniciar API após $max_retries tentativas"
+        exit 1
+    fi
+done
+
+# Iniciar monitoramento em background
+echo "Iniciando monitoramento..."
+(while true; do
     echo "=== Status do Sistema ==="
     echo "GPU Status:"
     nvidia-smi --query-gpu=utilization.gpu,memory.used,temperature.gpu --format=csv
     echo "Processos:"
-    ps aux | grep -E "uvicorn|redis"
+    ps aux | grep -E "uvicorn|redis|python"
     sleep 60
-done &
+done) > /workspace/logs/monitor.log 2>&1 &
 
 echo "Setup concluído!"
 echo "API: http://localhost:8000"
 echo "Redis: localhost:6379"
 
-# Manter logs visíveis
-tail -f /workspace/logs/api.log 
+# Exibir logs em tempo real
+tail -f /workspace/logs/{api,monitor}.log

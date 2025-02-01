@@ -8,6 +8,7 @@ from src.core.config import settings
 from src.core.db.init_db import init_db
 from src.core.redis_client import create_redis_pool
 from src.core.monitoring import setup_monitoring
+from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +54,19 @@ async def init_monitoring():
         logger.error(f"Erro inicializando monitoramento: {e}")
         raise
 
-async def initialize_api():
-    """Inicializa todos os componentes da API"""
+async def initialize_api(app: FastAPI):
+    """
+    Inicializa componentes necessários da API
+    """
     try:
-        # Inicializar componentes em paralelo
-        await asyncio.gather(
-            init_redis(),
-            init_db(),
-            init_directories(),
-            init_monitoring()
-        )
+        # Inicializar banco de dados
+        await init_db()
+        
+        # Configurar monitoramento
+        setup_monitoring()
+        
         logger.info("API inicializada com sucesso")
+        
     except Exception as e:
-        logger.error(f"Erro fatal inicializando API: {e}")
+        logger.error(f"Erro na inicialização da API: {e}")
         raise 
