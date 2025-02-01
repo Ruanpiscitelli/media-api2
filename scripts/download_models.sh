@@ -45,6 +45,7 @@ chmod -R 755 "$MODELS_DIR"
 SDXL_BASE_URL="https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
 SDXL_REFINER_URL="https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
 SDXL_VAE_URL="https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/vae.safetensors"
+FISH_SPEECH_URL="https://huggingface.co/fishaudio/fish-speech-1.5/resolve/main/model.pth"
 
 # Download função com retry
 download_model() {
@@ -78,6 +79,7 @@ models_to_download=(
     "$SDXL_BASE_URL|$MODELS_DIR/checkpoints/sd_xl_base_1.0.safetensors|SDXL base model"
     "$SDXL_REFINER_URL|$MODELS_DIR/checkpoints/sd_xl_refiner_1.0.safetensors|SDXL refiner model"
     "$SDXL_VAE_URL|$MODELS_DIR/vae/sdxl_vae.safetensors|SDXL VAE"
+    "$FISH_SPEECH_URL|$MODELS_DIR/checkpoints/fish_speech_model.pt|Fish Speech model"
 )
 
 for model in "${models_to_download[@]}"; do
@@ -116,9 +118,21 @@ LOGS_DIR=/workspace/logs
 HOST=0.0.0.0
 PORT=8000
 WORKERS=4
+
+# Configurações adicionais
+ENVIRONMENT=development  # Importante para validação dos modelos
 EOF
+
+# Criar diretórios adicionais se não existirem
+mkdir -p /workspace/media /workspace/logs /workspace/tmp
+
+# Ajustar permissões
+chmod -R 755 /workspace/media /workspace/logs /workspace/tmp
 
 log "Verificando instalação..."
 python scripts/check_models.py
 
-log "Setup completo!" 
+log "Setup completo!"
+
+# Adicionar o comando para fazer login no Hugging Face
+huggingface-cli login
