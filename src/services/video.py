@@ -9,6 +9,8 @@ import json
 import os
 from typing import Dict, List, Optional
 from datetime import datetime
+from pathlib import Path
+import torch
 
 from src.core.config import settings
 from src.generation.video.fast_huayuan import FastHuayuanGenerator
@@ -16,7 +18,6 @@ from src.generation.video.compositor import VideoCompositor
 from src.generation.speech.pipeline import SpeechPipeline
 from src.core.cache import cache
 from src.utils.video import VideoProcessor
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -55,29 +56,17 @@ class VideoService:
             Dicionário com metadados do projeto
         """
         try:
-            total_duration = sum(scene['duration'] for scene in scenes)
-            total_elements = sum(len(scene['elements']) for scene in scenes)
+            total_duration = sum(scene.get('duration', 0) for scene in scenes)
+            total_elements = sum(len(scene.get('elements', [])) for scene in scenes)
             
-            # Validações básicas
             if total_duration > settings.MAX_VIDEO_DURATION:
-                raise ValueError(
-                    f"Duração total ({total_duration}s) excede o limite "
-                    f"({settings.MAX_VIDEO_DURATION}s)"
-                )
-                
-            if total_elements > settings.MAX_VIDEO_ELEMENTS:
-                raise ValueError(
-                    f"Número de elementos ({total_elements}) excede o limite "
-                    f"({settings.MAX_VIDEO_ELEMENTS})"
-                )
+                raise ValueError(f"Duração total ({total_duration}s) excede o limite")
                 
             return {
                 'duration': total_duration,
                 'scenes': len(scenes),
-                'elements': total_elements,
-                'validated_at': datetime.utcnow().isoformat()
+                'elements': total_elements
             }
-            
         except Exception as e:
             logger.error(f"Erro validando projeto: {e}")
             raise
@@ -120,121 +109,37 @@ class VideoService:
             logger.error(f"Erro estimando recursos: {e}")
             raise
             
-    async def process_video_project(
-        self,
-        task_id: str,
-        gpu_id: str
-    ) -> Dict:
-        """
-        Processa projeto de vídeo completo.
-        
-        Args:
-            task_id: ID da tarefa
-            gpu_id: ID da GPU para processamento
-            
-        Returns:
-            Dicionário com resultado do processamento
-        """
+    async def process_video(self, project_id: str) -> Dict:
+        """Processa um projeto de vídeo"""
         try:
-            # Recupera configuração da tarefa
-            task = await cache.get_task(task_id)
-            project = task['params']
-            
-            # Processa cenas
-            scene_results = []
-            for i, scene in enumerate(project['scenes']):
-                # Atualiza progresso
-                await self._update_progress(task_id, (i / len(project['scenes'])) * 100)
+            # Obter projeto do cache
+            project = await self.cache.get(f"project:{project_id}")
+            if not project:
+                raise ValueError(f"Projeto {project_id} não encontrado")
                 
-                # Processa cena
-                result = await self._process_scene(scene, gpu_id)
-                scene_results.append(result)
+            # Processar cenas
+            results = []
+            for scene in project['scenes']:
+                result = await self._process_scene(scene)
+                results.append(result)
                 
-            # Processa áudio se necessário
-            audio_path = None
-            if project.get('audio'):
-                audio_path = await self._process_audio(project['audio'])
-                
-            # Combina cenas e áudio
-            final_video = await self.compositor.compose_video(
-                scenes=scene_results,
-                audio_path=audio_path,
-                format=project.get('format', 'mp4'),
-                quality=project.get('quality', 'high')
-            )
-            
-            # Atualiza status
-            await self._update_progress(task_id, 100)
-            
             return {
                 'status': 'completed',
-                'video_path': final_video,
-                'metadata': {
-                    'duration': sum(scene['duration'] for scene in project['scenes']),
-                    'format': project.get('format', 'mp4'),
-                    'quality': project.get('quality', 'high'),
-                    'scenes': len(project['scenes']),
-                    'has_audio': audio_path is not None
-                }
+                'scenes': len(results),
+                'duration': sum(r['duration'] for r in results)
             }
             
         except Exception as e:
-            logger.error(f"Erro processando projeto: {e}")
-            await self._update_progress(task_id, -1)  # Indica erro
+            logger.error(f"Erro processando vídeo: {e}")
             raise
             
-    async def _process_scene(self, scene: Dict, gpu_id: str) -> Dict:
-        """
-        Processa uma cena individual.
-        
-        Args:
-            scene: Configuração da cena
-            gpu_id: ID da GPU
-            
-        Returns:
-            Dicionário com resultado do processamento
-        """
+    async def _process_scene(self, scene: Dict) -> Dict:
+        """Processa uma cena individual"""
         try:
-            # Processa elementos
-            processed_elements = []
-            for element in scene['elements']:
-                if element['type'] == 'text':
-                    # Renderiza texto
-                    result = await self.compositor.render_text(
-                        text=element['content'],
-                        style=element.get('style', {}),
-                        position=element.get('position', {'x': 0.5, 'y': 0.5})
-                    )
-                elif element['type'] == 'image':
-                    # Carrega/processa imagem
-                    result = await self.processor.load_image(
-                        path=element['content'],
-                        position=element.get('position'),
-                        style=element.get('style')
-                    )
-                elif element['type'] == 'video':
-                    # Carrega/processa vídeo
-                    result = await self.processor.load_video(
-                        path=element['content'],
-                        position=element.get('position'),
-                        style=element.get('style')
-                    )
-                    
-                processed_elements.append(result)
-                
-            # Combina elementos
-            scene_video = await self.compositor.compose_scene(
-                elements=processed_elements,
-                duration=scene['duration'],
-                transition=scene.get('transition')
-            )
-            
             return {
-                'video_path': scene_video,
-                'duration': scene['duration'],
-                'elements': len(processed_elements)
+                'duration': scene.get('duration', 0),
+                'elements': len(scene.get('elements', []))
             }
-            
         except Exception as e:
             logger.error(f"Erro processando cena: {e}")
             raise
@@ -393,4 +298,5 @@ class VideoService:
 video_service = VideoService()
 
 async def get_video_service() -> VideoService:
+    """Retorna instância do serviço de vídeo"""
     return video_service 
