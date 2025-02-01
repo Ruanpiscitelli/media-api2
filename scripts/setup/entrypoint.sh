@@ -95,6 +95,10 @@ source /workspace/venv_clean/bin/activate
 
 # 5. Instalar dependências Python
 pip install --upgrade pip wheel setuptools
+
+# Instalar uvicorn primeiro
+pip install "uvicorn[standard]>=0.23.0"
+
 # Instalar PyTorch com CUDA 11.8
 pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
@@ -183,21 +187,42 @@ done
 cd /workspace/media-api2
 
 # Criar arquivo .env se não existir
-if [ ! -f .env ]; then
+if [ ! -f .env.development ]; then
     echo "Criando arquivo .env..."
-    cat > .env << EOF
+    cat > .env.development << EOF
 DEBUG=true
 ENVIRONMENT=development
 SECRET_KEY=your-secret-key-here
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_PASSWORD=
+REDIS_PASSWORD=development_password
 REDIS_DB=0
-ALLOWED_HOSTS=["*"]
-CORS_ORIGINS=["*"]
+BACKEND_CORS_ORIGINS=["*"]
 LOG_LEVEL=debug
+PROJECT_NAME="Media API"
+VERSION="2.0.0"
+API_V2_STR="/api/v2"
+DATABASE_URL="sqlite:///./sql_app.db"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REDIS_TIMEOUT=5
+REDIS_SSL=false
+RATE_LIMIT_PER_MINUTE=60
+MEMORY_THRESHOLD_MB=8192
+TEMP_FILE_MAX_AGE=3600
+COMFY_API_URL="http://localhost:8188/api"
+COMFY_WS_URL="ws://localhost:8188/ws"
+COMFY_TIMEOUT=30
+MAX_CONCURRENT_RENDERS=4
+MAX_RENDER_TIME=300
+MAX_VIDEO_LENGTH=300
+MAX_VIDEO_SIZE=100000000
+RENDER_TIMEOUT_SECONDS=300
 EOF
 fi
+
+# Criar link simbólico para .env atual
+ln -sf .env.development .env
 
 # Criar diretório de logs se não existir
 mkdir -p /workspace/logs
@@ -209,19 +234,66 @@ if [ -z "$VIRTUAL_ENV" ]; then
     source /workspace/venv_clean/bin/activate
 fi
 
+# Verificar instalação do uvicorn
+python -m pip install "uvicorn[standard]>=0.23.0" || {
+    echo "Uvicorn não encontrado. Instalando..."
+    pip install "uvicorn[standard]>=0.23.0"
+}
+
 # Verificar se as dependências estão instaladas
 echo "Verificando dependências da API..."
+echo "Listando pacotes instalados:"
+pip list | grep -E "uvicorn|fastapi"
+
+echo "Verificando conteúdo do ambiente virtual:"
+ls -la $VIRTUAL_ENV/bin/
+
 pip install -r requirements/vast.txt
 pip install -r requirements.txt
 
 # Configurar variáveis de ambiente necessárias
-export PYTHONPATH=/workspace/media-api2:$PYTHONPATH
+export PYTHONPATH=/workspace/media-api2
 export CUDA_VISIBLE_DEVICES=0
+export PATH=$VIRTUAL_ENV/bin:$PATH
 
 echo "Iniciando API..."
-nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1 \
-    --log-level debug --reload --log-file /workspace/logs/api.log 2>&1 &
-API_PID=$!
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Python executável: $(which python)"
+echo "Diretório atual: $(pwd)"
+echo "Conteúdo do diretório src:"
+ls -la src/
+
+echo "Iniciando API com uvicorn..."
+if python -m uvicorn src.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 1 \
+    --log-level debug \
+    --reload > /workspace/logs/api.log 2>&1 &
+then
+    API_PID=$!
+    echo "API iniciada com python -m uvicorn"
+elif $VIRTUAL_ENV/bin/uvicorn src.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 1 \
+    --log-level debug \
+    --reload > /workspace/logs/api.log 2>&1 &
+then
+    API_PID=$!
+    echo "API iniciada com caminho completo do uvicorn"
+else
+    echo "Falha ao iniciar API. Tentando instalar uvicorn novamente..."
+    pip uninstall -y uvicorn
+    pip install --no-cache-dir "uvicorn[standard]>=0.23.0"
+    python -m uvicorn src.main:app \
+        --host 0.0.0.0 \
+        --port 8000 \
+        --workers 1 \
+        --log-level debug \
+        --reload > /workspace/logs/api.log 2>&1 &
+    API_PID=$!
+fi
 
 # Verificar se API iniciou
 echo "Aguardando API iniciar..."
@@ -238,8 +310,12 @@ for i in {1..30}; do
         echo "Tentando reiniciar API..."
         kill $API_PID 2>/dev/null
         wait $API_PID 2>/dev/null
-        nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1 \
-            --log-level debug --reload --log-file /workspace/logs/api.log 2>&1 &
+        nohup python -m uvicorn src.main:app \
+            --host 0.0.0.0 \
+            --port 8000 \
+            --workers 1 \
+            --log-level debug \
+            --reload > /workspace/logs/api.log 2>&1 &
         API_PID=$!
     fi
     sleep 1

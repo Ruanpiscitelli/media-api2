@@ -7,13 +7,24 @@ from pathlib import Path
 from typing import Optional, List
 import torch
 from pydantic import validator
-from pydantic import ConfigDict
+from functools import lru_cache
+
+class EnvironmentSettings(BaseSettings):
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+
+    class Config:
+        env_file = ".env"
 
 class Settings(BaseSettings):
     # Básico
     PROJECT_NAME: str = "Media API"
     VERSION: str = "2.0.0"
     API_V2_STR: str = "/api/v2"
+    
+    # Ambiente
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
     
     # Segurança
     SECRET_KEY: str = os.getenv("SECRET_KEY", "development_key")
@@ -36,9 +47,6 @@ class Settings(BaseSettings):
     
     # Logging
     LOG_LEVEL: str = "INFO"
-    
-    # Configurações básicas
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # Diretórios
     BASE_DIR: Path = Path(__file__).parent.parent.parent
@@ -106,13 +114,19 @@ class Settings(BaseSettings):
 
     @validator("REDIS_PASSWORD")
     def validate_redis_password(cls, v, values):
-        if not v and not values.get('DEBUG', False):
+        env = values.get('ENVIRONMENT', 'development')
+        if env == 'production' and not v:
             raise ValueError("Redis password is required in production")
-        return v
+        return v or "development_password"
 
-    model_config = ConfigDict(
-        validate_assignment=True,
-        env_file=".env"
+@lru_cache()
+def get_settings() -> Settings:
+    env = EnvironmentSettings()
+    return Settings(
+        ENVIRONMENT=env.ENVIRONMENT,
+        DEBUG=env.DEBUG,
+        _env_file=f".env.{env.ENVIRONMENT}",
+        _env_file_encoding="utf-8"
     )
 
-settings = Settings(_env_file=".env", _env_file_encoding="utf-8")
+settings = get_settings()
