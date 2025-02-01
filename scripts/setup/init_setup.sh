@@ -186,17 +186,11 @@ python --version
 
 # Adicionar antes da instalação do PyTorch
 echo -e "${BLUE}Instalando CUDA Toolkit 12.1 e cuDNN...${NC}"
-apt-get install -y --no-install-recommends \
+apt-get install -y --allow-change-held-packages \
     cuda-toolkit-12-1 \
-    libcudnn8=8.9.7.29-1+cuda12.2  # Versão mais recente compatível
+    libcudnn8=8.9.7.29-1+cuda12.2
 
-# Ou para instalação manual via pacote .deb:
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
-mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
-wget https://developer.download.nvidia.com/compute/cuda/12.2.2/local_installers/cuda-repo-ubuntu2204-12-2-local_12.2.2-535.104.05-1_amd64.deb
-dpkg -i cuda-repo-ubuntu2204-12-2-local_12.2.2-535.104.05-1_amd64.deb
-cp /var/cuda-repo-ubuntu2204-12-2-local/cuda-*-keyring.gpg /usr/share/keyrings/
-apt-get update
+# E na instalação manual via .deb:
 apt-get install -y --allow-change-held-packages libcudnn8=8.9.7.29-1+cuda12.2
 
 # Atualizar variáveis de ambiente
