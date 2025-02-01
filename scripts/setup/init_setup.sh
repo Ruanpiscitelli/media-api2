@@ -363,6 +363,7 @@ REDIS_PORT=$REDIS_PORT
 COMFY_HOST=0.0.0.0
 COMFY_PORT=$COMFY_PORT
 COMFY_TIMEOUT=300
+COMFY_API_KEY=$(openssl rand -hex 32)  # Gera uma chave API aleatória
 MEDIA_DIR=/workspace/media
 MODELS_DIR=/workspace/models
 EOF

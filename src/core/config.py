@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     COMFY_API_URL: str = f"http://{COMFY_HOST}:{COMFY_PORT}/api"
     COMFY_WS_URL: str = f"ws://{COMFY_HOST}:{COMFY_PORT}/ws"
     COMFY_TIMEOUT: int = int(os.getenv("COMFY_TIMEOUT", "300"))
+    COMFY_API_KEY: Optional[str] = os.getenv("COMFY_API_KEY")
     
     class Config:
         """Configurações do Pydantic."""

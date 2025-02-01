@@ -16,14 +16,17 @@ class ComfyServer:
         self.base_url = settings.COMFY_API_URL
         self.ws_url = settings.COMFY_WS_URL
         self.timeout = settings.COMFY_TIMEOUT
-        self.api_key = settings.COMFY_API_KEY
+        self.api_key = getattr(settings, 'COMFY_API_KEY', None)  # Torna opcional
         self.session = None
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Retorna uma sessão HTTP."""
         if self.session is None or self.session.closed:
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             self.session = aiohttp.ClientSession(
-                headers={"Authorization": f"Bearer {self.api_key}"}
+                headers=headers
             )
         return self.session
     
