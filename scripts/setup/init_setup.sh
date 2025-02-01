@@ -50,8 +50,17 @@ python3 -m venv $WORKSPACE/venv_clean
 
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
-pip install -r $API_DIR/requirements.txt
+
+# Instalar torch primeiro
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Depois as outras dependências
 pip install -r $API_DIR/requirements/vast.txt
+pip install -r $API_DIR/requirements.txt
+
+# Instalar dependências do ComfyUI
+cd $COMFY_DIR
+pip install -r requirements.txt
 
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR
