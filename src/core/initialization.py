@@ -82,7 +82,7 @@ async def initialize_api(app: FastAPI):
         
         # Resto das inicializações...
         await init_db()
-        setup_monitoring()
+        await setup_monitoring()
         
         logger.info("API inicializada com sucesso")
         
@@ -145,4 +145,13 @@ async def validate_ffmpeg():
     except ImportError:
         raise RuntimeError("Módulo python-ffmpeg não instalado")
     except Exception as e:
-        raise RuntimeError(f"Erro validando FFmpeg: {e}") 
+        raise RuntimeError(f"Erro validando FFmpeg: {e}")
+
+async def initialize_services():
+    """Inicializa todos os serviços necessários"""
+    try:
+        await setup_monitoring()  # ou com uma porta específica: await setup_monitoring(port=8000)
+        # ... outras inicializações ...
+    except Exception as e:
+        logger.error(f"Erro na inicialização dos serviços: {e}")
+        raise 
