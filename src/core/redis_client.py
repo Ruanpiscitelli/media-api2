@@ -19,7 +19,7 @@ REDIS_ERRORS = Counter('redis_errors_total', 'Total de erros Redis', ['type'])
 REDIS_CONN_ACTIVE = Gauge('redis_connections_active', 'Conexões Redis ativas')
 
 # Instância global do cliente Redis
-redis_client: Optional[aioredis.Redis] = None
+redis_pool = None
 
 def with_redis_retry(max_retries: int = 3, delay: float = 1.0):
     """
@@ -55,28 +55,25 @@ def with_redis_retry(max_retries: int = 3, delay: float = 1.0):
     return decorator
 
 @with_redis_retry()
-async def init_redis_pool() -> aioredis.Redis:
+async def init_redis_pool():
     """
-    Inicializa e retorna uma pool de conexões Redis.
+    Inicializa pool do Redis usando a API moderna do aioredis 2.x
     
     Returns:
-        aioredis.Redis: Cliente Redis configurado
-    
-    Raises:
-        Exception: Se a conexão falhar após as tentativas
+        Redis: Cliente Redis configurado
     """
-    global redis_client
-    
+    global redis_pool
     try:
-        await cache.connect()
-        redis_client = cache.redis
-        
-        # Testa a conexão
-        await redis_client.ping()
+        # Substituindo create_redis_pool pelo método moderno from_url
+        redis_pool = aioredis.from_url(
+            'redis://localhost',
+            encoding='utf-8',
+            decode_responses=True,
+            max_connections=10
+        )
+        await redis_pool.ping()  # Testa a conexão
         REDIS_CONN_ACTIVE.set(1)
         logger.info("✅ Conexão Redis estabelecida com sucesso")
-        return redis_client
-        
     except Exception as e:
         REDIS_CONN_ACTIVE.set(0)
         logger.error(f"❌ Erro ao conectar ao Redis: {e}")
@@ -89,22 +86,18 @@ async def get_redis() -> aioredis.Redis:
     Returns:
         aioredis.Redis: Cliente Redis configurado
     """
-    global redis_client
+    global redis_pool
     
-    if redis_client is None:
-        redis_client = await init_redis_pool()
+    if redis_pool is None:
+        await init_redis_pool()
     
-    return redis_client
+    return redis_pool
 
-async def close_redis_pool() -> None:
-    """
-    Fecha a pool de conexões Redis.
-    """
-    global redis_client
-    
-    if redis_client is not None:
-        await redis_client.close()
-        redis_client = None
+async def close_redis_pool():
+    """Fecha a conexão com o Redis"""
+    global redis_pool
+    if redis_pool:
+        await redis_pool.close()
         REDIS_CONN_ACTIVE.set(0)
         logger.info("✅ Conexão Redis fechada")
 

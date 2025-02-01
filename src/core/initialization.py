@@ -13,6 +13,7 @@ from src.core.rate_limit import rate_limiter
 import os
 import anyio
 from src.core.cache import cache
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +60,23 @@ async def init_monitoring():
 async def initialize_api():
     """Inicializa serviços básicos"""
     try:
-        # Métricas
-        setup_monitoring()
+        # Inicializar serviços em paralelo
+        await asyncio.gather(
+            init_redis_pool(),
+            setup_monitoring(),
+            init_directories()
+        )
         
-        # Cache
-        await cache.connect()
-        
-        # Diretórios
-        await init_directories()
-        
-        logger.info("✅ API pronta")
+        # Verificar GPUs
+        if torch.cuda.is_available():
+            logger.info(f"GPUs disponíveis: {torch.cuda.device_count()}")
+            for i in range(torch.cuda.device_count()):
+                props = torch.cuda.get_device_properties(i)
+                logger.info(f"GPU {i}: {props.name} ({props.total_memory/1e9:.1f}GB)")
+        else:
+            logger.warning("Nenhuma GPU disponível, usando CPU")
+            
+        logger.info("✅ API iniciada")
     except Exception as e:
         logger.error(f"❌ Erro: {e}")
         raise

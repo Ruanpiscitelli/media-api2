@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Union
 from datetime import datetime, timedelta
 import aioredis
 from prometheus_client import Counter, Gauge
+import time
 
 from src.core.config import settings
 from src.core.errors import APIError
@@ -50,6 +51,8 @@ class Cache:
         self.local_lock = asyncio.Lock()
         self.redis: Optional[aioredis.Redis] = None
         self._connect_redis()
+        self._cache: Dict[str, Any] = {}
+        self._expires: Dict[str, float] = {}
         
     def _connect_redis(self):
         """Estabelece conexão com Redis"""

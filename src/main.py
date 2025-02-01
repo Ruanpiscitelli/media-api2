@@ -3,7 +3,8 @@ Servidor principal da API de geração de mídia.
 Gerencia inicialização, configuração e ciclo de vida da aplicação.
 """
 
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, UJSONResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -23,33 +24,13 @@ from src.comfy.template_manager import TemplateManager
 from src.core.config import settings
 from src.core.rate_limit import rate_limiter
 from src.core.checks import run_system_checks
-from src.core.monitoring import REQUESTS, ERRORS
+from src.core.monitoring import REQUESTS, ERRORS, REQUEST_LATENCY
 from src.core.redis_client import close_redis_pool, init_redis_pool
 from src.core.middleware.connection import ConnectionMiddleware
 from src.core.initialization import initialize_api
 from src.services.image import get_image_service
 from src.services.video import get_video_service
-
-# Routers
-from src.api.v2.endpoints import (
-    processing,
-    templates,
-    json2video,
-    suno,
-    shorts,
-    images,
-    audio,
-    video,
-    comfy,
-    fish_speech,
-    models,
-    workflows,
-    jobs,
-    auth,
-    users,
-    settings as settings_router,
-    monitoring
-)
+from src.core.middleware.timeout import TimeoutMiddleware
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -70,25 +51,54 @@ sys.path.append(str(root_dir))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Gerencia o ciclo de vida da aplicação"""
+    """Gerenciamento otimizado do ciclo de vida"""
     # Startup
     try:
-        # Inicializar Redis
-        await init_redis_pool()
+        # Inicializar recursos em paralelo
+        init_tasks = {
+            'Redis Pool': init_redis_pool(),
+            'Monitoring': setup_monitoring(),
+            'Directories': init_directories()
+        }
         
-        # Iniciar scheduler
-        scheduler.start()
+        results = await asyncio.gather(*init_tasks.values(), return_exceptions=True)
         
-        logger.info("API iniciada com sucesso")
+        # Verificar resultados
+        for (name, _), result in zip(init_tasks.items(), results):
+            if isinstance(result, Exception):
+                logger.error(f"Falha em {name}: {result}")
+            else:
+                logger.info(f"✅ {name} OK")
+        
+        # Iniciar scheduler com retry
+        for attempt in range(3):
+            try:
+                scheduler.start()
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                logger.warning(f"Tentativa {attempt + 1} de iniciar scheduler falhou: {e}")
+                await asyncio.sleep(1)
+        
+        logger.info("✅ API iniciada com sucesso")
         yield
         
     except Exception as e:
-        logger.error(f"Erro durante inicialização: {e}")
+        logger.error(f"❌ Erro durante inicialização: {e}")
         raise
     finally:
-        # Shutdown
-        scheduler.shutdown()
-        await close_redis_pool()
+        # Shutdown limpo
+        shutdown_tasks = {
+            'Scheduler': scheduler.shutdown(),
+            'Redis Pool': close_redis_pool()
+        }
+        
+        results = await asyncio.gather(*shutdown_tasks.values(), return_exceptions=True)
+        for (name, _), result in zip(shutdown_tasks.items(), results):
+            if isinstance(result, Exception):
+                logger.error(f"Erro ao finalizar {name}: {result}")
+                
         logger.info("API finalizada")
 
 # Middleware de segurança
@@ -117,15 +127,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app = FastAPI(
     title="Media API",
     version="2.0.0",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url="/openapi.json" if settings.DEBUG else None,
-    debug=settings.DEBUG,
-    default_response_class=UJSONResponse,
-    lifespan=lifespan
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+    default_response_class=UJSONResponse
 )
 
-# Adicionar middlewares
+# Middlewares básicos
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -140,6 +148,7 @@ app.add_middleware(
     same_site="lax",  # Proteção contra CSRF
     https_only=True   # Cookies apenas via HTTPS
 )
+app.add_middleware(TimeoutMiddleware, timeout=300)
 
 # Middleware de rate limit
 @app.middleware("http")
@@ -156,43 +165,36 @@ async def rate_limit_middleware(request: Request, call_next):
             )
         raise
 
-# Middleware de métricas
+# Middleware de métricas otimizado
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
+    """Middleware para coletar métricas de performance"""
+    path = request.url.path
+    method = request.method
+    start_time = time.time()
+    
     try:
-        REQUESTS.inc()
+        # Incrementar contador de requests
+        REQUESTS.labels(path=path, method=method).inc()
+        
+        # Executar request
         response = await call_next(request)
+        
+        # Registrar latência
+        process_time = time.time() - start_time
+        REQUEST_LATENCY.labels(path=path, method=method, status=response.status_code).observe(process_time)
+        
         return response
     except Exception as e:
-        ERRORS.inc()
-        logger.error(f"Erro: {e}")
+        # Registrar erros
+        ERRORS.labels(path=path, method=method, error=type(e).__name__).inc()
+        logger.error(f"Request error: {str(e)}", exc_info=True)
         raise
 
-# Incluir routers com prefixo de versão
-API_V2_PREFIX = "/api/v2"
-
-routers = [
-    (processing.router, "Processing"),
-    (templates.router, "Templates"),
-    (json2video.router, "JSON2Video"),
-    (suno.router, "Suno"),
-    (shorts.router, "Shorts"),
-    (images.router, "Images"),
-    (audio.router, "Audio"),
-    (video.router, "Video"),
-    (comfy.router, "ComfyUI"),
-    (fish_speech.router, "FishSpeech"),
-    (models.router, "Models"),
-    (workflows.router, "Workflows"),
-    (jobs.router, "Jobs"),
-    (auth.router, "Auth"),
-    (users.router, "Users"),
-    (settings_router.router, "Settings"),
-    (monitoring.router, "Monitoring")
-]
-
-for router, tag in routers:
-    app.include_router(router, prefix=API_V2_PREFIX, tags=[tag])
+# Importar routers
+from src.api.v2.endpoints import router_groups
+for router, tags in router_groups:
+    app.include_router(router, prefix="/api/v2", tags=tags)
 
 # Dependency para injetar o ComfyServer
 async def get_comfy():
@@ -209,8 +211,95 @@ async def get_comfy_context():
 # Startup
 @app.on_event("startup")
 async def startup():
-    await initialize_api()
+    """Inicialização otimizada da API"""
+    try:
+        # Inicializar serviços em paralelo
+        init_tasks = {
+            'System Check': check_system(),
+            'Database Check': check_db_connection(),
+            'Redis Check': check_redis_connection(),
+            'Redis Pool': init_redis_pool(),
+            'Monitoring': setup_monitoring()
+        }
+        
+        results = await asyncio.gather(*init_tasks.values(), return_exceptions=True)
+        
+        # Verificar resultados
+        critical_services = ['System Check', 'Database Check', 'Redis Check']
+        critical_failures = 0
+        
+        for (name, _), result in zip(init_tasks.items(), results):
+            if isinstance(result, Exception):
+                logger.error(f"Falha em {name}: {result}")
+                if name in critical_services:
+                    critical_failures += 1
+            else:
+                logger.info(f"✅ {name} OK")
+                
+        # Verificar se podemos continuar
+        if critical_failures > 0:
+            logger.warning(f"API iniciando com recursos limitados - {critical_failures} falhas críticas")
+            
+        logger.info("API iniciada")
+    except Exception as e:
+        logger.error(f"Erro na inicialização: {e}")
+        raise
 
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health_check():
+    """Endpoint para verificar saúde da API"""
+    try:
+        health = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {}
+        }
+        
+        # Verificar Redis de forma assíncrona
+        try:
+            if redis_pool:
+                async with redis_pool.get() as redis:
+                    await redis.ping()
+                health["services"]["redis"] = "ok"
+        except:
+            health["services"]["redis"] = "error"
+            
+        # Verificar GPUs
+        try:
+            if torch.cuda.is_available():
+                health["services"]["gpu"] = {
+                    "count": torch.cuda.device_count(),
+                    "devices": [
+                        {
+                            "id": i,
+                            "name": torch.cuda.get_device_name(i),
+                            "memory": torch.cuda.get_device_properties(i).total_memory
+                        }
+                        for i in range(torch.cuda.device_count())
+                    ]
+                }
+            else:
+                health["services"]["gpu"] = "cpu_only"
+        except:
+            health["services"]["gpu"] = "error"
+            
+        # Verificar espaço em disco
+        try:
+            disk = psutil.disk_usage("/workspace")
+            health["services"]["disk"] = {
+                "total": disk.total,
+                "used": disk.used,
+                "free": disk.free,
+                "percent": disk.percent
+            }
+        except:
+            health["services"]["disk"] = "error"
+            
+        return health
+    except Exception as e:
+        logger.error(f"Health check falhou: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }

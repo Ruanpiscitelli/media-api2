@@ -11,6 +11,9 @@ from typing import List, Dict, Tuple
 from pathlib import Path
 import importlib
 import subprocess
+from sqlalchemy import text
+from src.core.db import engine
+from src.core.redis_client import redis_pool
 
 from src.core.config import settings
 
@@ -187,3 +190,59 @@ async def run_system_checks() -> bool:
         logger.error("Algumas verificações do sistema falharam")
         
     return checks_passed
+
+async def check_system():
+    """Verificações básicas do sistema"""
+    checks = {
+        "cuda": torch.cuda.is_available(),
+        "gpu_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+    }
+    
+    for name, status in checks.items():
+        logger.info(f"Check {name}: {'OK' if status else 'FALHOU'}")
+    
+    return all(checks.values())
+
+async def check_db_connection():
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        logger.error(f"Erro DB: {e}")
+        return False
+
+async def check_redis_connection():
+    try:
+        if redis_pool:
+            async with redis_pool.get() as redis:
+                await redis.ping()
+            return True
+    except Exception as e:
+        logger.error(f"Erro Redis: {e}")
+    return False
+
+async def check_gpu_health() -> bool:
+    """Verifica saúde das GPUs"""
+    try:
+        from src.core.gpu_manager import gpu_manager
+        
+        if not gpu_manager.gpus:
+            logger.warning("Nenhuma GPU disponível")
+            return False
+            
+        for gpu in gpu_manager.gpus:
+            if gpu.get("is_cpu", False):
+                continue
+                
+            # Verificar temperatura
+            temp = await gpu_manager.get_temperature(gpu["id"])
+            if temp > settings.GPU_TEMP_LIMIT:
+                logger.error(f"GPU {gpu['id']} temperatura alta: {temp}°C")
+                return False
+                
+        return True
+        
+    except Exception as e:
+        logger.error(f"Erro verificando GPUs: {e}")
+        return False

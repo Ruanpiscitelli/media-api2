@@ -21,7 +21,7 @@ class BaseError(Exception):
         self.message = message
         super().__init__(self.message)
 
-class APIError(Exception):
+class APIError(HTTPException):
     """Erro base para exceções da API"""
     def __init__(
         self,
@@ -30,21 +30,16 @@ class APIError(Exception):
         error_code: str = "internal_error",
         details: Optional[Dict[str, Any]] = None
     ):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
+        super().__init__(status_code=status_code, detail=message)
         self.error_code = error_code
         self.details = details or {}
         ERROR_COUNTS.labels(error_code).inc()
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Converte erro para dicionário"""
-        return {
-            "error": self.error_code,
-            "message": self.message,
-            "details": self.details,
-            "status_code": self.status_code
-        }
+class ResourceError(APIError):
+    pass
+
+class ProcessingError(APIError):
+    pass
 
 # Erros de Autenticação
 class AuthenticationError(APIError):
@@ -205,10 +200,6 @@ class ModelLoadError(ModelError):
         )
 
 # Erros de API
-class ResourceError(BaseError):
-    """Classe base para erros de recursos"""
-    pass
-
 class DiskSpaceError(ResourceError):
     """
     Erro lançado quando não há espaço em disco suficiente
@@ -234,10 +225,6 @@ class MemoryError(ResourceError):
         )
 
 # Erros de Processamento
-class ProcessingError(BaseError):
-    """Classe base para erros de processamento"""
-    pass
-
 class GenerationError(ProcessingError):
     """
     Erro lançado quando há falha na geração de conteúdo
@@ -255,9 +242,9 @@ async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
         status_code=exc.status_code,
         content={
             "error": {
-                "code": exc.error_code,
-                "message": exc.message,
-                "details": exc.details
+                "code": getattr(exc, "error_code", "internal_error"),
+                "message": exc.detail,
+                "details": getattr(exc, "details", {})
             }
         }
     )

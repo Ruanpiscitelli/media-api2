@@ -12,6 +12,7 @@ from src.core.config import settings
 import pynvml
 from prometheus_client import Gauge, CollectorRegistry, REGISTRY
 from src.core.cache import Cache
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +67,27 @@ class GPUManager:
             }
         
     def _initialize_gpus(self):
-        """Inicializa lista de GPUs disponíveis"""
-        if not torch.cuda.is_available():
-            logger.warning("CUDA não disponível. Usando CPU.")
-            return
+        try:
+            if torch.cuda.is_available():
+                for gpu_id in range(torch.cuda.device_count()):
+                    total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
+                    self.gpus.append({
+                        "id": gpu_id,
+                        "total_memory": total_memory,
+                        "used_memory": 0
+                    })
+                    logger.info(f"GPU {gpu_id} inicializada: {total_memory/1024**3:.1f}GB")
+            else:
+                logger.warning("CUDA não disponível. Usando CPU.")
+                self.gpus.append({
+                    "id": -1,
+                    "total_memory": psutil.virtual_memory().total,
+                    "used_memory": 0,
+                    "is_cpu": True
+                })
+        except Exception as e:
+            logger.error(f"Erro inicializando GPUs: {e}")
             
-        for gpu_id in range(torch.cuda.device_count()):
-            total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
-            self.gpus.append({
-                "id": gpu_id,
-                "total_memory": total_memory,
-                "used_memory": 0,
-                "tasks": []
-            })
-            logger.info(f"GPU {gpu_id} inicializada: {total_memory/1024**3:.1f}GB VRAM")
-    
     def _init_metrics(self):
         """Inicializa métricas Prometheus"""
         try:
@@ -373,6 +380,11 @@ class GPUManager:
             vram_required=required_vram,
             priority=task.priority
         )
+
+    async def get_available_gpu(self):
+        if not self.gpus:
+            return -1  # CPU
+        return self.gpus[0]["id"]  # Simplificado para uso pessoal
 
 # Instância global do gerenciador
 gpu_manager = GPUManager() 
