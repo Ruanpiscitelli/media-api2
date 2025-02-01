@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
     
+    # Limites de Renderização
+    MAX_CONCURRENT_RENDERS: int = int(os.getenv("MAX_CONCURRENT_RENDERS", "4"))
+    MAX_RENDER_TIME: int = int(os.getenv("MAX_RENDER_TIME", "300"))  # 5 minutos
+    MAX_VIDEO_LENGTH: int = int(os.getenv("MAX_VIDEO_LENGTH", "300"))  # 5 minutos
+    MAX_VIDEO_SIZE: int = int(os.getenv("MAX_VIDEO_SIZE", "100_000_000"))  # 100MB
+    
     # ComfyUI
     COMFY_HOST: str = os.getenv("COMFY_HOST", "localhost")
     COMFY_PORT: int = int(os.getenv("COMFY_PORT", "8188"))

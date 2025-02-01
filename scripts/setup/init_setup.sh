@@ -366,6 +366,12 @@ COMFY_TIMEOUT=300
 COMFY_API_KEY=$(openssl rand -hex 32)  # Gera uma chave API aleatória
 MEDIA_DIR=/workspace/media
 MODELS_DIR=/workspace/models
+
+# Limites de renderização
+MAX_CONCURRENT_RENDERS=4
+MAX_RENDER_TIME=300
+MAX_VIDEO_LENGTH=300
+MAX_VIDEO_SIZE=100000000
 EOF
 
 # Carregar variáveis
