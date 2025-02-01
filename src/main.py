@@ -3,7 +3,7 @@ Servidor principal da API de geração de mídia.
 Gerencia inicialização, configuração e ciclo de vida da aplicação.
 """
 
-from fastapi import FastAPI, Request, Response, BackgroundTasks, Depends
+from fastapi import FastAPI, Request, Response, BackgroundTasks, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 import os
-from typing import List
+from typing import List, Dict
 from fastapi import Header
 import torch
 import asyncio
@@ -35,6 +35,10 @@ from redis.asyncio import Redis
 import redis.asyncio
 from src.core.rate_limit import rate_limiter
 from src.core.config import settings
+from src.core.checks import run_system_checks
+from src.comfy.workflow_manager import ComfyWorkflowManager
+from src.core.gpu.manager import GPUManager
+from src.core.queue.manager import QueueManager
 
 # Importação dos routers
 from src.api.v2.endpoints import (
@@ -156,75 +160,46 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     try:
-        # Criar diretórios
-        setup_directories()
-        
-        # Inicializar ComfyUI
-        await comfy_server.initialize()
-        
-        # Inicializar templates padrão
-        template_manager = TemplateManager()
-        templates_initialized = False
-        retry_count = 0
-        max_retries = 3
-        
-        while not templates_initialized and retry_count < max_retries:
-            try:
-                default_templates = get_default_templates()
-                for template in default_templates:
-                    try:
-                        template_manager.create_template(
-                            name=template["name"],
-                            description=template["description"],
-                            workflow=template["workflow"],
-                            parameters=template["parameters"],
-                            parameter_mappings=template["parameter_mappings"],
-                            author="system",
-                            tags=template["tags"],
-                            category=template["category"]
-                        )
-                        logger.info(f"Template {template['name']} inicializado com sucesso")
-                    except ValueError as e:
-                        if "já existe" not in str(e):
-                            logger.error(f"Erro ao inicializar template {template['name']}: {e}")
-                templates_initialized = True
-            except Exception as e:
-                retry_count += 1
-                logger.error(f"Tentativa {retry_count} de inicializar templates falhou: {e}")
-                await asyncio.sleep(2)
-                
-        if not templates_initialized:
-            logger.error("Falha ao inicializar templates após várias tentativas")
-        
-        # Inicializar scheduler
-        scheduler.add_job(cleanup_temp_files, 'interval', hours=1)
-        scheduler.add_job(monitor_memory, 'interval', minutes=5)
-        scheduler.start()
-            
-        logger.info("🚀 Aplicação inicializada com sucesso")
-        
-    except Exception as e:
-        logger.error(f"❌ Erro fatal na inicialização: {e}")
-        raise e
-        
-    yield
+        await startup_tasks()
+        yield
+    finally:
+        # Shutdown
+        await shutdown_tasks()
+
+async def shutdown_tasks():
+    """Tarefas de shutdown melhoradas"""
+    logger.info("Iniciando shutdown gracioso...")
     
-    # Shutdown
+    # Parar de aceitar novas requisições
+    app.state.accepting_requests = False
+    
+    # Aguardar requisições em andamento (com timeout)
     try:
-        # Parar scheduler
-        scheduler.shutdown()
-        
-        # Limpar recursos
-        await comfy_server.shutdown()
-        
-        # Forçar limpeza de memória
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            
-        logger.info("👋 Aplicação finalizada com sucesso")
-    except Exception as e:
-        logger.error(f"❌ Erro no shutdown: {e}")
+        await asyncio.wait_for(
+            asyncio.gather(*app.state.running_tasks),
+            timeout=30
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Timeout aguardando requisições terminarem")
+    
+    # Parar scheduler
+    scheduler.shutdown(wait=True)
+    
+    # Fechar conexões do banco
+    await engine.dispose()
+    
+    # Fechar conexões Redis
+    await redis_client.close()
+    await aioredis_pool.disconnect()
+    
+    # Limpar recursos GPU
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
+    # Forçar coleta de lixo
+    gc.collect()
+    
+    logger.info("Shutdown concluído")
 
 # Configurar logger
 logger = setup_logging()
@@ -246,11 +221,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         return response
 
+# Executar verificações antes de iniciar
+run_system_checks()
+
 # Configurar aplicação FastAPI
 app = FastAPI(
-    title="Media Generation API",
-    description="API para geração de mídia com IA",
-    version="2.0.0",
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan
 )
@@ -279,26 +256,24 @@ async def global_rate_limit(request: Request, call_next):
 # Configurar CORS
 def setup_cors():
     """Configura CORS para a aplicação."""
-    origins = json.loads(os.environ.get("CORS_ORIGINS", '["http://localhost:3000"]'))
-    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[origin.strip() for origin in settings.CORS_ORIGINS.split(",")],
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["Content-Disposition"]
+        expose_headers=["Content-Range", "Range"],
+        max_age=3600,
     )
-    return origins
 
-origins = setup_cors()
+setup_cors()
 
 # Middleware para verificar origens
 @app.middleware("http")
 async def cors_origin_middleware(request: Request, call_next):
     """Middleware para verificar origens CORS."""
     origin = request.headers.get("origin")
-    if origin and origin not in origins:
+    if origin and origin not in settings.BACKEND_CORS_ORIGINS:
         return JSONResponse(
             status_code=400,
             content={"detail": "Origin not allowed"}
@@ -313,20 +288,16 @@ app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 # Middleware para timeout
 @app.middleware("http")
 async def timeout_middleware(request: Request, call_next):
-    """Middleware para timeout de operações GPU."""
-    if request.url.path.startswith("/api/v2/processing"):
-        try:
-            timeout = float(os.getenv("RENDER_TIMEOUT_SECONDS", settings.RENDER_TIMEOUT_SECONDS))
-            response = await asyncio.wait_for(call_next(request), timeout=timeout)
-            return response
-        except asyncio.TimeoutError:
-            return JSONResponse(
-                status_code=504,
-                content={
-                    "detail": f"Operação excedeu o timeout de {timeout} segundos"
-                }
-            )
-    return await call_next(request)
+    try:
+        return await asyncio.wait_for(
+            call_next(request), 
+            timeout=settings.REQUEST_TIMEOUT
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="Request timeout"
+        )
 
 # Middleware para logging de requests
 @app.middleware("http")
@@ -347,8 +318,8 @@ async def request_logging_middleware(request: Request, call_next):
 def setup_routers():
     """Configura os routers da aplicação."""
     # Core
-    app.include_router(processing.router)
-    app.include_router(templates.router)
+    app.include_router(processing.router, prefix=settings.API_V2_STR)
+    app.include_router(templates.router, prefix=settings.API_V2_STR)
     
     # Media Generation
     app.include_router(json2video.router)
@@ -653,6 +624,138 @@ async def startup_event():
 
     # Validar configurações ao iniciar
     settings.check_config()
+
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    endpoint = request.url.path
+    key = f"rate_limit:{client_ip}:{endpoint}"
+    
+    # Adicionar diferentes limites por endpoint
+    limit = settings.RATE_LIMITS.get(endpoint, settings.DEFAULT_RATE_LIMIT)
+    
+    async with redis_client.pipeline(transaction=True) as pipe:
+        current = await pipe.incr(key)
+        if current == 1:
+            await pipe.expire(key, 60)
+        await pipe.execute()
+        
+    if current > limit:
+        raise HTTPException(
+            status_code=429, 
+            detail={
+                "error": "Too many requests",
+                "limit": limit,
+                "reset": await redis_client.ttl(key)
+            }
+        )
+
+app.middleware("http")(rate_limit_middleware)
+
+app.add_middleware(
+    ErrorHandlerMiddleware,
+    handlers={
+        500: handle_gpu_errors,
+        429: handle_rate_limit
+    }
+)
+
+# Instanciar managers
+workflow_manager = ComfyWorkflowManager()
+gpu_manager = GPUManager()
+queue_manager = QueueManager()
+
+@app.post("/v2/comfy/execute", tags=["ComfyUI"])
+async def execute_workflow(
+    workflow_request: WorkflowExecutionRequest,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user)
+):
+    """
+    Executa um workflow do ComfyUI.
+    
+    - Valida o workflow
+    - Aloca recursos (GPU)
+    - Executa em background
+    - Retorna ID para acompanhamento
+    """
+    try:
+        # Validar workflow
+        if not await workflow_manager.validate_workflow(workflow_request.workflow):
+            raise HTTPException(400, "Workflow inválido")
+            
+        # Estimar recursos necessários
+        resources = await gpu_manager.estimate_resources(workflow_request.workflow)
+        
+        # Alocar GPU
+        gpu = await gpu_manager.allocate_gpu(
+            vram_required=resources["vram_required"],
+            priority=workflow_request.priority
+        )
+        
+        if not gpu:
+            raise HTTPException(503, "Nenhuma GPU disponível")
+            
+        # Criar tarefa
+        task_id = await queue_manager.create_task(
+            workflow=workflow_request.workflow,
+            user_id=current_user.id,
+            gpu_id=gpu.id,
+            priority=workflow_request.priority
+        )
+        
+        # Executar em background
+        background_tasks.add_task(
+            workflow_manager.execute_workflow,
+            workflow=workflow_request.workflow,
+            prompt_inputs=workflow_request.inputs,
+            client_id=task_id
+        )
+        
+        return {
+            "task_id": task_id,
+            "status": "queued",
+            "estimated_time": resources["estimated_time"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro executando workflow: {e}")
+        raise HTTPException(500, str(e))
+
+@app.get("/v2/comfy/workflows")
+async def list_workflows(current_user = Depends(get_current_user)):
+    """Lista workflows disponíveis"""
+    workflows = []
+    for path in Path("workflows").glob("*.json"):
+        with open(path) as f:
+            workflow = json.load(f)
+            workflows.append({
+                "name": path.stem,
+                "description": workflow.get("description"),
+                "created_at": path.stat().st_mtime
+            })
+    return {"workflows": workflows}
+
+@app.post("/v2/comfy/workflows/{name}")
+async def save_workflow(
+    name: str,
+    workflow: Dict,
+    current_user = Depends(get_current_user)
+):
+    """Salva um novo workflow"""
+    try:
+        # Validar workflow
+        if not await workflow_manager.validate_workflow(workflow):
+            raise HTTPException(400, "Workflow inválido")
+            
+        # Salvar
+        path = Path("workflows") / f"{name}.json"
+        with open(path, "w") as f:
+            json.dump(workflow, f, indent=2)
+            
+        return {"status": "success"}
+        
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 if __name__ == "__main__":
     # Configuração para debugging

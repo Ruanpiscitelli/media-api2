@@ -6,8 +6,9 @@ import logging
 from datetime import datetime
 import asyncio
 from typing import Dict, Any, List
-from prometheus_client import Gauge, Counter, Histogram
+from prometheus_client import Gauge, Counter, Histogram, start_http_server
 import nvidia_smi
+import pynvml
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class GPUMonitor:
         self._last_metrics = {}
         self.metrics = self._setup_metrics()
         nvidia_smi.nvmlInit()
+        pynvml.nvmlInit()
         
     def _setup_metrics(self) -> Dict[str, Any]:
         """Configura todas as métricas Prometheus"""
@@ -58,11 +60,16 @@ class GPUMonitor:
                 'Time to allocate GPU memory',
                 ['device'],
                 buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0)
-            )
+            ),
+            'gpu_util': Gauge('gpu_util', 'Utilização da GPU (%)', ['gpu_id']),
+            'gpu_mem_used': Gauge('gpu_mem_used', 'VRAM utilizada (bytes)', ['gpu_id']),
+            'gpu_nvlink_tx': Gauge('gpu_nvlink_tx', 'Taxa NVLink TX (MB/s)', ['gpu_id', 'peer']),
+            'gpu_nvlink_rx': Gauge('gpu_nvlink_rx', 'Taxa NVLink RX (MB/s)', ['gpu_id', 'peer'])
         }
     
     async def start_monitoring(self):
         """Inicia o loop de monitoramento"""
+        start_http_server(8001)
         while True:
             try:
                 await self._collect_metrics()
@@ -129,6 +136,19 @@ class GPUMonitor:
                     }
                 }
                 
+                # Utilização básica
+                self.metrics['gpu_util'].labels(gpu_id=device).set(util.gpu)
+                
+                # Memória
+                self.metrics['gpu_mem_used'].labels(gpu_id=device).set(memory.used)
+                
+                # NVLink
+                for peer in self.check_nvlink_peers(int(device)):
+                    tx = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, peer, 0)
+                    rx = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, peer, 1)
+                    self.metrics['gpu_nvlink_tx'].labels(gpu_id=device, peer=peer).set(tx)
+                    self.metrics['gpu_nvlink_rx'].labels(gpu_id=device, peer=peer).set(rx)
+                
         except Exception as e:
             logger.error(f"Erro coletando métricas: {e}")
             self.metrics['errors'].labels(device='all', type='collection').inc()
@@ -191,5 +211,15 @@ class GPUMonitor:
         """Cleanup ao destruir o objeto"""
         try:
             nvidia_smi.nvmlShutdown()
+            pynvml.nvmlShutdown()
         except:
             pass
+
+    def check_nvlink_peers(self, gpu_id: int) -> List[int]:
+        """Retorna lista de GPUs conectadas via NVLink"""
+        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+        try:
+            peers = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, 0)
+            return [i for i in range(len(self.gpus)) if i != gpu_id]
+        except pynvml.NVMLError:
+            return []

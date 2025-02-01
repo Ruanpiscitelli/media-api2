@@ -2,10 +2,10 @@
 Endpoints para síntese de voz, incluindo suporte a textos longos e streaming.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, File, UploadFile, Query, Body
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, constr
-from typing import List, Optional, Dict
+from pydantic import BaseModel, Field, constr, HttpUrl
+from typing import List, Optional, Dict, Any
 import re
 from src.core.auth import get_current_user
 from src.core.rate_limit import rate_limiter
@@ -13,8 +13,9 @@ from src.services.speech import SpeechService
 from src.core.gpu_manager import gpu_manager
 from src.core.queue_manager import queue_manager
 import logging
+from datetime import datetime
 
-router = APIRouter(prefix="/synthesize/speech", tags=["speech"])
+router = APIRouter(prefix="/synthesize/speech", tags=["Síntese de Voz"])
 logger = logging.getLogger(__name__)
 speech_service = SpeechService()
 
@@ -31,13 +32,25 @@ def sanitize_header_value(value: str) -> str:
     return sanitized[:64]
 
 class SpeechRequest(BaseModel):
-    """Modelo para requisição de síntese de voz"""
-    text: str = Field(..., description="Texto para sintetizar")
-    voice_id: constr(regex=r'^[a-zA-Z0-9\-\.]{1,64}$') = Field(..., description="ID da voz (apenas alfanuméricos, hífen e ponto)")
-    emotion: str = Field("neutral", description="Emoção da voz")
-    speed: float = Field(1.0, description="Velocidade da fala")
-    pitch: float = Field(0.0, description="Tom da voz")
-    volume: float = Field(1.0, description="Volume da voz")
+    """
+    Modelo para requisição de síntese de voz.
+    
+    Attributes:
+        text: Texto a ser sintetizado
+        voice_id: ID da voz a ser usada
+        emotion: Emoção desejada na fala
+        speed: Velocidade da fala (0.5 a 2.0)
+        pitch: Ajuste de tom (-20 a +20)
+        volume: Volume da voz (0 a 2.0)
+        language: Código do idioma (ex: pt-BR)
+    """
+    text: str = Field(..., description="Texto a ser sintetizado")
+    voice_id: str = Field(..., description="ID da voz")
+    emotion: str = Field("neutral", description="Emoção da fala")
+    speed: float = Field(1.0, description="Velocidade", ge=0.5, le=2.0)
+    pitch: int = Field(0, description="Ajuste de tom", ge=-20, le=20)
+    volume: float = Field(1.0, description="Volume", ge=0, le=2.0)
+    language: Optional[str] = Field(None, description="Código do idioma")
 
 class LongSpeechRequest(SpeechRequest):
     chunk_size: int = Field(400, description="Tamanho do chunk em caracteres")
@@ -52,6 +65,91 @@ class SpeechResponse(BaseModel):
     status: str
     audio_path: str
     metadata: Dict
+
+class VoiceCloneRequest(BaseModel):
+    """
+    Modelo para requisição de clonagem de voz.
+    
+    Attributes:
+        name: Nome para identificar a voz
+        description: Descrição da voz
+        language: Idioma principal da voz
+        gender: Gênero da voz (male/female)
+    """
+    name: str = Field(..., description="Nome da voz")
+    description: Optional[str] = Field(None, description="Descrição")
+    language: str = Field(..., description="Idioma principal")
+    gender: str = Field(..., description="Gênero da voz")
+
+class Voice(BaseModel):
+    """
+    Modelo para informações de uma voz.
+    
+    Attributes:
+        id: Identificador único da voz
+        name: Nome da voz
+        language: Idioma da voz
+        gender: Gênero da voz
+        description: Descrição da voz
+        preview_url: URL do áudio de preview
+        created_at: Data de criação
+    """
+    id: str = Field(..., description="ID da voz")
+    name: str = Field(..., description="Nome da voz")
+    language: str = Field(..., description="Idioma")
+    gender: str = Field(..., description="Gênero")
+    description: Optional[str] = Field(None, description="Descrição")
+    preview_url: Optional[HttpUrl] = Field(None, description="URL do preview")
+    created_at: datetime = Field(..., description="Data de criação")
+
+@router.post(
+    "",
+    summary="Sintetizar Voz",
+    description="""
+    Sintetiza voz a partir de texto usando Fish Speech.
+    
+    Features:
+    - Múltiplas vozes em diferentes idiomas
+    - Controle de emoção
+    - Ajustes de velocidade e tom
+    - Controle de volume
+    """,
+    responses={
+        200: {
+            "description": "Áudio gerado com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "speech_123",
+                        "url": "http://exemplo.com/audio/123.mp3",
+                        "duration": 2.5,
+                        "text": "Olá, como você está?"
+                    }
+                }
+            }
+        }
+    }
+)
+async def synthesize_speech(
+    request: SpeechRequest,
+    current_user = Depends(get_current_user),
+    rate_limit = Depends(rate_limiter)
+):
+    """Sintetiza voz a partir do texto fornecido."""
+    try:
+        result = await speech_service.synthesize(
+            text=request.text,
+            voice_id=request.voice_id,
+            emotion=request.emotion,
+            speed=request.speed,
+            pitch=request.pitch,
+            volume=request.volume,
+            language=request.language,
+            user_id=current_user.id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/long", response_model=SpeechResponse)
 async def generate_long_speech(
@@ -164,13 +262,37 @@ async def estimate_generation(
             detail=f"Erro na estimativa: {str(e)}"
         )
 
-@router.get("/voices")
+@router.get(
+    "/voices",
+    response_model=List[Voice],
+    summary="Listar Vozes",
+    description="Retorna lista de todas as vozes disponíveis.",
+    responses={
+        200: {
+            "description": "Lista de vozes obtida com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "voices": [
+                            {
+                                "id": "pt_br_female",
+                                "name": "Ana",
+                                "language": "pt-BR",
+                                "gender": "female"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+)
 async def list_voices(
     language: Optional[str] = None,
     gender: Optional[str] = None,
     current_user = Depends(get_current_user)
 ):
-    """Lista vozes disponíveis"""
+    """Lista todas as vozes disponíveis com filtros opcionais."""
     try:
         voices = await speech_service.list_voices(
             language=language,
@@ -231,27 +353,99 @@ async def list_emotions(
         logger.error(f"Erro ao listar emoções: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/clone")
+@router.post(
+    "/clone",
+    response_model=Voice,
+    summary="Clonar Voz",
+    description="""
+    Clona uma voz a partir de amostras de áudio.
+    Requer pelo menos 3 amostras de áudio da voz a ser clonada.
+    """,
+    responses={
+        200: {
+            "description": "Voz clonada com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "voice_123",
+                        "name": "Minha Voz",
+                        "language": "pt-BR",
+                        "gender": "female",
+                        "created_at": "2024-01-30T12:00:00Z"
+                    }
+                }
+            }
+        }
+    }
+)
 async def clone_voice(
-    name: str,
-    samples: List[str],
-    language: str = "pt-BR",
-    current_user = Depends(get_current_user),
-    rate_limit = Depends(rate_limiter)
+    request: VoiceCloneRequest,
+    samples: List[UploadFile] = File(...),
+    current_user = Depends(get_current_user)
 ):
-    """Clona uma voz a partir de amostras de áudio"""
+    """Clona uma voz a partir de amostras de áudio."""
     try:
-        result = await speech_service.clone_voice(
-            name=name,
+        voice = await speech_service.clone_voice(
+            name=request.name,
+            description=request.description,
+            language=request.language,
+            gender=request.gender,
             samples=samples,
-            language=language,
             user_id=current_user.id
         )
-        return {
-            "status": "success",
-            "voice_id": result["voice_id"]
-        }
-        
+        return voice
     except Exception as e:
         logger.error(f"Erro na clonagem de voz: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get(
+    "/voices/{voice_id}",
+    response_model=Voice,
+    summary="Detalhes da Voz",
+    description="Retorna detalhes de uma voz específica.",
+    responses={
+        200: {
+            "description": "Detalhes da voz obtidos com sucesso"
+        },
+        404: {
+            "description": "Voz não encontrada"
+        }
+    }
+)
+async def get_voice(
+    voice_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Obtém detalhes de uma voz específica."""
+    try:
+        voice = await speech_service.get_voice(voice_id)
+        return voice
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete(
+    "/voices/{voice_id}",
+    summary="Remover Voz",
+    description="Remove uma voz clonada.",
+    responses={
+        200: {
+            "description": "Voz removida com sucesso"
+        },
+        404: {
+            "description": "Voz não encontrada"
+        }
+    }
+)
+async def delete_voice(
+    voice_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Remove uma voz clonada."""
+    try:
+        await speech_service.delete_voice(
+            voice_id=voice_id,
+            user_id=current_user.id
+        )
+        return {"message": "Voz removida com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e)) 

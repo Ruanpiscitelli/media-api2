@@ -53,6 +53,9 @@ class GPUManager:
         
         # Inicia monitoramento
         self._start_monitoring()
+        
+        self.gpus = []
+        self._init_gpus()
     
     def _setup_cuda(self):
         """
@@ -104,6 +107,25 @@ class GPUManager:
             
             if util.gpu > self.config['monitoring']['utilization_threshold']:
                 logger.warning(f"GPU {device} acima do limite de utilização: {util.gpu}%")
+    
+    def _init_gpus(self):
+        """Inicializa lista de GPUs disponíveis"""
+        for i in range(torch.cuda.device_count()):
+            self.gpus.append({
+                "id": i,
+                "total_memory": torch.cuda.get_device_properties(i).total_memory,
+                "in_use": False
+            })
+            
+    async def estimate_resources(self, workflow: Dict) -> Dict:
+        """Estima recursos necessários para um workflow"""
+        # Implementar lógica de estimativa baseada no workflow
+        pass
+        
+    async def allocate_gpu(self, vram_required: int, priority: int = 0) -> Optional[Dict]:
+        """Aloca uma GPU para execução"""
+        # Implementar lógica de alocação
+        pass
     
     async def allocate_gpu(self, task_type: str, memory_required: int) -> Optional[int]:
         """

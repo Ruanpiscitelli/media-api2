@@ -57,114 +57,71 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 
 ### Executar Workflow
 ```http
-POST /comfy/execute
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-Content-Type: application/json
-
-{
-    "workflow": {
-        "nodes": [
-            {
-                "type": "SDXLLoader",
-                "inputs": {
-                    "prompt": "uma paisagem futurista",
-                    "negative_prompt": "baixa qualidade"
-                }
-            }
-        ]
-    },
-    "timeout": 300,
-    "priority": 1,
-    "gpu_preference": 0
-}
+POST /v2/comfy/execute
 ```
+Executa um workflow do ComfyUI.
 
-**Resposta (200 OK)**
+**Request Body:**
 ```json
 {
-    "prompt_id": "abc123",
-    "status": "processing",
-    "estimated_time": 30
+  "workflow": {
+    // Workflow JSON do ComfyUI
+  },
+  "inputs": {
+    // Inputs específicos para o workflow
+  },
+  "priority": 0 // Opcional, prioridade da execução (0-10)
 }
 ```
 
-### Executar Workflow por Arquivo
+**Response:**
+```json
+{
+  "task_id": "uuid-v4",
+  "status": "queued",
+  "estimated_time": 120 // Tempo estimado em segundos
+}
+```
+
+### List Workflows
 ```http
-POST /comfy/execute/file
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-Content-Type: application/json
-
-{
-    "workflow_name": "sdxl_base",
-    "timeout": 300,
-    "priority": 1,
-    "gpu_preference": 0
-}
+GET /v2/comfy/workflows
 ```
+Lista todos os workflows disponíveis.
 
-**Resposta (200 OK)**
+**Response:**
 ```json
 {
-    "prompt_id": "abc123",
-    "status": "processing",
-    "estimated_time": 30
-}
-```
-
-### Obter Status do Workflow
-```http
-GET /comfy/status/{prompt_id}
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-```
-
-**Resposta (200 OK)**
-```json
-{
-    "status": "completed",
-    "progress": 100,
-    "outputs": {
-        "images": ["http://exemplo.com/output/123.png"],
-        "metadata": {}
+  "workflows": [
+    {
+      "name": "workflow1",
+      "description": "Descrição do workflow",
+      "created_at": 1234567890
     }
+  ]
 }
 ```
 
-### Obter Histórico
+### Save Workflow
 ```http
-GET /comfy/history
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+POST /v2/comfy/workflows/{name}
 ```
+Salva um novo workflow.
 
-**Resposta (200 OK)**
+**Path Parameters:**
+- name: Nome do workflow
+
+**Request Body:**
 ```json
 {
-    "executions": [
-        {
-            "prompt_id": "abc123",
-            "status": "completed",
-            "created_at": "2024-01-30T12:00:00Z",
-            "completed_at": "2024-01-30T12:01:00Z",
-            "outputs": {}
-        }
-    ]
+  // Workflow JSON do ComfyUI
 }
 ```
 
-### Obter Informações dos Nós
-```http
-GET /comfy/object_info
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-```
-
-**Resposta (200 OK)**
+**Response:**
 ```json
 {
-    "nodes": {
-        "SDXLLoader": {
-            "inputs": ["prompt", "negative_prompt"],
-            "outputs": ["model", "clip", "vae"]
-        }
-    }
+  "status": "success"
 }
 ```
 
@@ -311,30 +268,23 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 
 ## 🔧 Sistema
 
-### Status dos Recursos
+### Status do Sistema
 ```http
-GET /comfy/resources
+GET /system/status
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```
 
 **Resposta (200 OK)**
 ```json
 {
-    "gpus": [
-        {
-            "id": 0,
-            "total_vram": 24.0,
-            "used_vram": 8.5,
-            "temperature": 65,
-            "utilization": 45
-        }
-    ],
-    "system": {
-        "total_ram": 64.0,
-        "used_ram": 32.5,
-        "cpu_percent": 75
+    "status": "online",
+    "gpu_usage": {
+        "gpu0": 45.5,
+        "gpu1": 32.1
     },
-    "allocations": 3
+    "queue_size": 5,
+    "active_workers": 2,
+    "uptime": 86400.5
 }
 ```
 
@@ -739,27 +689,9 @@ Content-Type: application/json
 
 ## 📊 Sistema
 
-### Status do Sistema
-```http
-GET /system/status
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-```
-
 ### Métricas
 ```http
 GET /system/metrics
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-```
-
-### Status da Fila
-```http
-GET /system/queue
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-```
-
-### Status das GPUs
-```http
-GET /system/gpu/status
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```
 
@@ -767,18 +699,39 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```http
 GET /system/logs
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+Query Parameters:
+  - service: string (all|api|comfyui|system) = "all"
+  - limit: integer = 100
+  - level: string (optional) = null
 ```
 
-### Tarefas Ativas
+**Resposta (200 OK)**
+```json
+{
+    "logs": [
+        {
+            "timestamp": "2024-01-30T12:00:00Z",
+            "level": "INFO",
+            "message": "Sistema iniciado com sucesso"
+        }
+    ]
+}
+```
+
+### Status das Filas
 ```http
-GET /system/tasks/active
+GET /system/queue/status
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```
 
-### Cancelar Tarefa
-```http
-POST /system/tasks/{task_id}/cancel
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+**Resposta (200 OK)**
+```json
+{
+    "high_priority": 2,
+    "normal": 5,
+    "batch": 10,
+    "total_tasks": 17
+}
 ```
 
 ## 🎮 GPU Management
@@ -836,9 +789,9 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 }
 ```
 
-### Executar Workflow
+### Executar Workflow Detalhado
 ```http
-POST /execute
+POST /workflow/execute
 Content-Type: application/json
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 
@@ -865,138 +818,67 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 }
 ```
 
-## 🏥 Health Check Detalhado
+## 📦 Gerenciamento de Modelos
 
-### Status Completo do Sistema
+### Upload de Modelo
 ```http
-GET /health/full
+POST /models/upload
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+Content-Type: multipart/form-data
+
+Parameters:
+  - file: File
+  - name: string (optional)
+  - type: string
+  - description: string (optional)
+  - metadata: object (optional)
 ```
 
 **Resposta (200 OK)**
 ```json
 {
-    "database": {
-        "status": "healthy",
-        "latency_ms": 5
-    },
-    "redis": {
-        "status": "healthy",
-        "used_memory": "1.2GB"
-    },
-    "gpus": [
-        {
-            "id": 0,
-            "status": "available",
-            "vram": {
-                "total": 24576,
-                "used": 1024,
-                "free": 23552
-            },
-            "temperature": 45
-        }
-    ],
-    "services": {
-        "comfyui": true,
-        "cache": true
+    "status": "success",
+    "model": {
+        "id": "model_123",
+        "name": "Meu Modelo",
+        "type": "sdxl",
+        "description": "Descrição do modelo",
+        "uploaded_by": "username",
+        "created_at": "2024-01-30T12:00:00Z"
     }
 }
 ```
 
-## 🗣️ Síntese de Voz (Parâmetros Adicionais)
-
-### Sintetizar Voz Avançado
+### Remover Modelo
 ```http
-POST /synthesize/speech
-Content-Type: application/json
+DELETE /models/{model_id}
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-
-{
-    "text": "Texto para sintetizar",
-    "voice_id": "pt_br_female",
-    "emotion": "neutral",
-    "speed": 1.0,
-    "pitch": 0.0,
-    "volume": 1.0
-}
 ```
 
 **Resposta (200 OK)**
 ```json
 {
-    "id": "speech_123",
-    "url": "http://exemplo.com/audio/123.mp3",
-    "duration": 2.5,
-    "text": "Texto para sintetizar",
-    "metadata": {
-        "voice": "pt_br_female",
-        "emotion": "neutral",
-        "speed": 1.0,
-        "pitch": 0.0,
-        "volume": 1.0
-    }
+    "status": "success",
+    "message": "Modelo removido com sucesso"
 }
 ```
 
-## 🔐 Autenticação (Endpoints Adicionais)
+## 🖥️ Processamento
 
-### Registrar Novo Usuário
+### Processamento de Texto
 ```http
-POST /v2/auth/register
-Content-Type: application/json
-
-{
-    "username": "novo_usuario",
-    "email": "usuario@exemplo.com",
-    "password": "senha_segura",
-    "plan": "free"
-}
-```
-
-**Resposta (200 OK)**
-```json
-{
-    "message": "Usuário registrado com sucesso",
-    "user_id": "user_123"
-}
-```
-
-### Atualizar Plano do Usuário
-```http
-PUT /v2/auth/me/plan
-Content-Type: application/json
+POST /v2/processing/text
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
-
-{
-    "plan": "premium"
-}
-```
-
-**Resposta (200 OK)**
-```json
-{
-    "user_id": "user_123",
-    "plan": "premium",
-    "updated_at": "2024-01-30T12:00:00Z"
-}
-```
-
-## 🖼️ Thumbnails (Parâmetros Adicionais)
-
-### Gerar Thumbnail Avançado
-```http
-POST /thumbnails/generate
 Content-Type: application/json
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 
 {
-    "video_url": "http://exemplo.com/video.mp4",
-    "width": 320,
-    "height": 180,
-    "timestamp": 5.0,
-    "quality": 85,
-    "format": "JPEG",
-    "smart_crop": true
+    "text": "Texto para processar",
+    "font_name": "Arial",
+    "size": 32,
+    "max_width": 800,
+    "language": "pt-br",
+    "color": [0, 0, 0],
+    "alignment": "left"
 }
 ```
 
@@ -1004,14 +886,162 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```json
 {
     "status": "success",
-    "url": "http://exemplo.com/thumbnails/123.jpg",
-    "metadata": {
-        "width": 320,
-        "height": 180,
-        "format": "JPEG",
-        "quality": 85,
-        "timestamp": 5.0,
-        "file_size": 15240
+    "image": "base64_encoded_image",
+    "metrics": {
+        "width": 800,
+        "height": 150,
+        "lines": 3
     }
+}
+```
+
+### Processamento de Imagem
+```http
+POST /v2/processing/image
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+Content-Type: application/json
+
+{
+    "operations": [
+        {
+            "type": "resize",
+            "params": {
+                "width": 800,
+                "height": 600
+            }
+        }
+    ],
+    "output_format": "PNG"
+}
+```
+
+**Resposta (200 OK)**
+```json
+{
+    "status": "success",
+    "url": "http://exemplo.com/processed/image.png",
+    "metadata": {
+        "width": 800,
+        "height": 600,
+        "format": "PNG"
+    }
+}
+```
+
+## 🔔 Webhooks (Endpoints Adicionais)
+
+### Atualizar Webhook
+```http
+PUT /webhooks/{webhook_id}
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+Content-Type: application/json
+
+{
+    "url": "https://seu-site.com/webhook",
+    "events": ["video.completed", "image.completed"],
+    "secret": "seu_secret_key",
+    "description": "Webhook para notificações"
+}
+```
+
+**Resposta (200 OK)**
+```json
+{
+    "status": "success",
+    "webhook": {
+        "id": "webhook_123",
+        "url": "https://seu-site.com/webhook",
+        "events": ["video.completed", "image.completed"],
+        "description": "Webhook para notificações",
+        "updated_at": "2024-01-30T12:00:00Z"
+    }
+}
+```
+
+### Histórico de Execuções do Webhook
+```http
+GET /webhooks/{webhook_id}/history
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+Query Parameters:
+  - limit: integer = 100
+```
+
+**Resposta (200 OK)**
+```json
+{
+    "history": [
+        {
+            "id": "exec_123",
+            "event": "video.completed",
+            "status": "success",
+            "timestamp": "2024-01-30T12:00:00Z",
+            "response": {
+                "status_code": 200,
+                "duration_ms": 150
+            }
+        }
+    ]
+}
+```
+
+## System Management
+
+### List Processes
+```http
+GET /v2/system/processes
+```
+Lista todos os processos em execução.
+
+**Response:**
+```json
+{
+  "processes": [
+    {
+      "pid": 1234,
+      "name": "python",
+      "command": "python script.py",
+      "status": "running",
+      "cpu_percent": 50.0,
+      "memory_percent": 5.0,
+      "gpu_id": 0,
+      "gpu_memory_used": 1000,
+      "uptime": 3600
+    }
+  ]
+}
+```
+
+### Kill Process
+```http
+POST /v2/system/processes/{pid}/kill
+```
+Mata um processo específico.
+
+**Path Parameters:**
+- pid: ID do processo
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Process 1234 killed"
+}
+```
+
+### Restart Process
+```http
+POST /v2/system/processes/{pid}/restart
+```
+Reinicia um processo específico.
+
+**Path Parameters:**
+- pid: ID do processo
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Process 1234 restarted",
+  "new_pid": 1235
 }
 ```

@@ -6,11 +6,16 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
+import asyncio
+import torch
+from sqlalchemy.ext.asyncio import AsyncSessionLocal
+from sqlalchemy import text
 
 from src.core.config import settings
 from src.services.auth import get_current_admin_user
 from src.services.monitoring import MonitoringService
 from src.services.gpu_manager import GPUManager
+from src.services.redis import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -290,4 +295,44 @@ async def get_system_logs(
         
     except Exception as e:
         logger.error(f"Erro obtendo logs do sistema: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/health")
+async def health_check():
+    """
+    Verificação de saúde mais robusta
+    """
+    health = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": settings.VERSION,
+        "services": {}
+    }
+    
+    # Verificar Redis
+    try:
+        await redis_client.ping()
+        health["services"]["redis"] = "healthy"
+    except Exception as e:
+        health["services"]["redis"] = f"unhealthy: {str(e)}"
+        health["status"] = "degraded"
+    
+    # Verificar Banco de Dados
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        health["services"]["database"] = "healthy"
+    except Exception as e:
+        health["services"]["database"] = f"unhealthy: {str(e)}"
+        health["status"] = "degraded"
+    
+    # Verificar GPU se necessário
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.memory_summary()
+            health["services"]["gpu"] = "healthy"
+        except Exception as e:
+            health["services"]["gpu"] = f"unhealthy: {str(e)}"
+            health["status"] = "degraded"
+    
+    return health 

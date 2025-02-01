@@ -6,11 +6,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from .models import User
 from src.core.security import get_password_hash
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import select
 
 class UserCRUD:
     """Operações CRUD para o modelo User"""
     
-    def create(self, db: Session, user_data: Dict[str, Any]) -> User:
+    async def create(self, db: AsyncSession, user_data: Dict[str, Any]) -> User:
         """
         Cria um novo usuário
         """
@@ -18,27 +20,30 @@ class UserCRUD:
         if "password" in user_data:
             user_data["hashed_password"] = get_password_hash(user_data.pop("password"))
             
-        user = User(**user_data)
-        try:
+        async with db.begin():
+            user = User(**user_data)
             db.add(user)
-            db.commit()
-            db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
             return user
-        except IntegrityError:
-            db.rollback()
-            raise ValueError("Usuário já existe")
 
-    def get_by_id(self, db: Session, user_id: int) -> Optional[User]:
+    async def get_by_id(self, db: AsyncSession, user_id: int) -> Optional[User]:
         """
         Busca usuário por ID
         """
-        return db.query(User).filter(User.id == user_id).first()
+        result = await db.execute(
+            select(User).filter(User.id == user_id)
+        )
+        return result.scalar_one_or_none()
 
-    def get_by_username(self, db: Session, username: str) -> Optional[User]:
+    async def get_by_username(self, db: AsyncSession, username: str) -> Optional[User]:
         """
         Busca usuário por username
         """
-        return db.query(User).filter(User.username == username).first()
+        result = await db.execute(
+            select(User).filter(User.username == username)
+        )
+        return result.scalar_one_or_none()
 
     def get_by_email(self, db: Session, email: str) -> Optional[User]:
         """

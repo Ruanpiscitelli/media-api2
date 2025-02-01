@@ -55,6 +55,9 @@ EOF
 chmod +x /workspace/monitor.sh
 nohup /workspace/monitor.sh &
 
+# Iniciar monitoramento GPU com config
+python -m src.core.gpu.monitor --config /workspace/config/gpu_monitor.yaml &
+
 echo "Setup concluído! Serviços iniciados:"
 echo "- API: http://localhost:8000"
 echo "- GUI: http://localhost:8080"

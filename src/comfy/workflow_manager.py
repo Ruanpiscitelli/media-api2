@@ -4,11 +4,17 @@ Gerenciador de workflows do ComfyUI.
 from typing import Dict, Any, List, Optional
 import json
 from pathlib import Path
+import asyncio
+import websockets
+import logging
+from src.core.config import settings
 
 from src.comfy.config import ComfyConfig
 from src.comfy.workflow_validator import WorkflowValidator
 
-class WorkflowManager:
+logger = logging.getLogger(__name__)
+
+class ComfyWorkflowManager:
     """
     Gerenciador de workflows do ComfyUI.
     
@@ -25,6 +31,11 @@ class WorkflowManager:
         
         # Cache de workflows
         self._workflow_cache: Dict[str, Dict[str, Any]] = {}
+        
+        self.ws_url = f"ws://{settings.COMFY_HOST}:{settings.COMFY_PORT}/ws"
+        self.api_url = f"http://{settings.COMFY_HOST}:{settings.COMFY_PORT}/api"
+        self.workflows_dir = Path("workflows")
+        self.workflows_dir.mkdir(exist_ok=True)
         
     def validate_workflow(self, workflow: Dict[str, Any]) -> bool:
         """
@@ -59,7 +70,7 @@ class WorkflowManager:
             return self._workflow_cache[workflow_name]
             
         # Carrega do disco
-        workflow_path = self.config.get_workflow_path(workflow_name)
+        workflow_path = self.workflows_dir / f"{workflow_name}.json"
         if not workflow_path.exists():
             raise FileNotFoundError(f"Workflow não encontrado: {workflow_name}")
             
@@ -90,7 +101,7 @@ class WorkflowManager:
         self.validate_workflow(workflow)
         
         # Salva no disco
-        workflow_path = self.config.get_workflow_path(workflow_name)
+        workflow_path = self.workflows_dir / f"{workflow_name}.json"
         workflow_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(workflow_path, "w") as f:
@@ -107,7 +118,7 @@ class WorkflowManager:
             Lista de nomes de workflows
         """
         workflows = []
-        for path in self.config.workflows_dir.glob("*.json"):
+        for path in self.workflows_dir.glob("*.json"):
             workflows.append(path.stem)
         return sorted(workflows)
         
@@ -121,7 +132,7 @@ class WorkflowManager:
         Raises:
             FileNotFoundError: Se o workflow não existir
         """
-        workflow_path = self.config.get_workflow_path(workflow_name)
+        workflow_path = self.workflows_dir / f"{workflow_name}.json"
         if not workflow_path.exists():
             raise FileNotFoundError(f"Workflow não encontrado: {workflow_name}")
             
@@ -216,3 +227,63 @@ class WorkflowManager:
         # TODO: Implementar lógica de substituição de parâmetros
         # Por enquanto apenas retorna o template original
         return template 
+
+    async def execute_workflow(
+        self, 
+        workflow: Dict,
+        prompt_inputs: Dict[str, Any],
+        client_id: Optional[str] = None
+    ) -> Dict:
+        """
+        Executa um workflow com os inputs fornecidos.
+        
+        Args:
+            workflow: Workflow em formato API JSON
+            prompt_inputs: Inputs para o workflow
+            client_id: ID opcional do cliente
+        """
+        try:
+            # Atualizar inputs no workflow
+            workflow = self._update_workflow_inputs(workflow, prompt_inputs)
+            
+            # Conectar ao websocket
+            async with websockets.connect(
+                f"{self.ws_url}?clientId={client_id or 'api'}"
+            ) as ws:
+                # Enviar workflow
+                await ws.send(json.dumps({
+                    "type": "execute",
+                    "data": workflow
+                }))
+                
+                # Aguardar resposta
+                while True:
+                    msg = json.loads(await ws.recv())
+                    
+                    if msg["type"] == "executed":
+                        return msg["data"]
+                    elif msg["type"] == "error":
+                        raise RuntimeError(f"Erro executando workflow: {msg['data']}")
+                        
+        except Exception as e:
+            logger.error(f"Erro executando workflow: {e}")
+            raise
+
+    def _update_workflow_inputs(self, workflow: Dict, inputs: Dict) -> Dict:
+        """Atualiza os inputs de um workflow"""
+        updated = workflow.copy()
+        
+        for node_id, node in updated.items():
+            if "inputs" in node:
+                for input_name, input_value in node["inputs"].items():
+                    if input_name in inputs:
+                        node["inputs"][input_name] = inputs[input_name]
+                        
+        return updated
+
+    async def get_node_info(self) -> Dict:
+        """Obtém informações sobre os nós disponíveis"""
+        # Fazer requisição HTTP para /object_info
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.api_url}/object_info") as resp:
+                return await resp.json() 

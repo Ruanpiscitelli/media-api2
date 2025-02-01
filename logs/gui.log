@@ -1,0 +1,5 @@
+INFO:     Will watch for changes in these directories: ['/Users/ruanpiscitelli/Documents/github/media-api']
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     Started reloader process [6254] using StatReload
+ERROR:    Error loading ASGI app. Could not import module "src.web.main".
+INFO:     Stopping reloader process [6254]

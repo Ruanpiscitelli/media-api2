@@ -9,6 +9,9 @@ import asyncio
 from typing import Optional, Dict, List
 from dataclasses import dataclass
 from src.core.config import settings
+import pynvml
+from prometheus_client import Gauge
+from src.core.cache import Cache
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +25,21 @@ class GPUTask:
     start_time: Optional[float] = None
 
 class GPUManager:
-    """Gerenciador de recursos GPU"""
+    """Gerenciador de recursos de GPU com monitoramento Prometheus"""
     
     def __init__(self):
         """Inicializa o gerenciador GPU"""
-        self.available_gpus = []
+        self.gpus = []
         self.tasks: Dict[str, GPUTask] = {}
         self.lock = asyncio.Lock()
         self._initialize_gpus()
+        self._init_metrics()
+        self.vram_map = {
+            'sdxl': 8.5,
+            'fish_speech': 4.2,
+            'video': 12.0
+        }
+        self.cache = Cache()
         
     def _initialize_gpus(self):
         """Inicializa lista de GPUs disponíveis"""
@@ -39,7 +49,7 @@ class GPUManager:
             
         for gpu_id in range(torch.cuda.device_count()):
             total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
-            self.available_gpus.append({
+            self.gpus.append({
                 "id": gpu_id,
                 "total_memory": total_memory,
                 "used_memory": 0,
@@ -47,6 +57,12 @@ class GPUManager:
             })
             logger.info(f"GPU {gpu_id} inicializada: {total_memory/1024**3:.1f}GB VRAM")
     
+    def _init_metrics(self):
+        """Registra métricas Prometheus para monitoramento de GPUs"""
+        self.utilization = Gauge('gpu_utilization', 'Utilização da GPU', ['gpu_id'])
+        self.memory_used = Gauge('gpu_memory_used', 'VRAM utilizada', ['gpu_id'])
+        self.temperature = Gauge('gpu_temperature', 'Temperatura da GPU', ['gpu_id'])
+
     async def allocate_gpu(self, task_id: str, vram_required: int, priority: int = 0) -> Optional[int]:
         """
         Aloca uma GPU para uma tarefa.
@@ -60,11 +76,11 @@ class GPUManager:
             ID da GPU alocada ou None se não houver GPU disponível
         """
         async with self.lock:
-            if not self.available_gpus:
+            if not self.gpus:
                 return None
                 
             # Encontrar GPU com memória suficiente
-            for gpu in self.available_gpus:
+            for gpu in self.gpus:
                 free_memory = gpu["total_memory"] - gpu["used_memory"]
                 if free_memory >= vram_required:
                     gpu["used_memory"] += vram_required
@@ -84,7 +100,7 @@ class GPUManager:
     
     async def _try_preempt_gpu(self, vram_required: int, priority: int) -> Optional[int]:
         """Tenta liberar GPU preemptando tarefas de menor prioridade"""
-        for gpu in self.available_gpus:
+        for gpu in self.gpus:
             preemptable_tasks = [
                 self.tasks[t] for t in gpu["tasks"]
                 if self.tasks[t].priority < priority
@@ -125,7 +141,7 @@ class GPUManager:
                 return
                 
             task = self.tasks[task_id]
-            for gpu in self.available_gpus:
+            for gpu in self.gpus:
                 if gpu["id"] == task.gpu_id:
                     gpu["used_memory"] -= task.vram_required
                     gpu["tasks"].remove(task_id)
@@ -143,7 +159,7 @@ class GPUManager:
         """
         async with self.lock:
             status = []
-            for gpu in self.available_gpus:
+            for gpu in self.gpus:
                 status.append({
                     "id": gpu["id"],
                     "total_memory": gpu["total_memory"],
@@ -153,6 +169,54 @@ class GPUManager:
                     "active_tasks": len(gpu["tasks"])
                 })
             return status
+
+    async def _predict_vram_usage(self, model_type: str) -> float:
+        """Preve o uso de VRAM com base no modelo e histórico"""
+        # Consulta cache de estimativas
+        cache_key = f"vram_estimate_{model_type}"
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return float(cached)
+        
+        # Calcula estimativa dinâmica
+        base_estimate = self.vram_map.get(model_type, 6.0)
+        
+        # Ajuste baseado na carga atual
+        load_factor = 1 + (len(self.tasks) / len(self.gpus)) if self.gpus else 1
+        estimate = base_estimate * load_factor * 1024**3  # Convert to bytes
+        
+        # Atualiza cache
+        await self.cache.set(cache_key, estimate, ttl=300)
+        return estimate
+
+    async def check_nvlink_peers(self, gpu_id: int):
+        """Retorna lista de GPUs conectadas via NVLink"""
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+        peers = []
+        try:
+            for link in range(6):  # Verificar todos os links NVLink
+                if pynvml.nvmlDeviceGetNvLinkState(handle, link) == pynvml.NVML_FEATURE_ENABLED:
+                    peer_info = pynvml.nvmlDeviceGetNvLinkRemotePciInfo(handle, link)
+                    peers.append(peer_info)
+        except pynvml.NVMLError as e:
+            logger.error(f"Erro NVLink: {e}")
+        return peers
+
+    async def allocate_gpu(self, task: GenerationTask) -> int:
+        """Aloca GPU considerando NVLink e VRAM"""
+        required_vram = await self._predict_vram_usage(task.model_type)
+        
+        # Prioriza GPUs com NVLink
+        for gpu in sorted(self.gpus, key=lambda x: len(self.check_nvlink_peers(x['id'])), reverse=True):
+            if gpu.free_vram >= required_vram:
+                # Verifica peers NVLink para transferência direta
+                peers = await self.check_nvlink_peers(gpu['id'])
+                if peers and any(self.gpus[p].free_vram >= required_vram for p in peers):
+                    return gpu['id']
+                    
+        # Fallback para alocação normal
+        return super().allocate_gpu(task)
 
 # Instância global do gerenciador
 gpu_manager = GPUManager() 

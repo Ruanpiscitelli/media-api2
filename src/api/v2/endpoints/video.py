@@ -1,17 +1,16 @@
 """
-Endpoints para geração de vídeos usando FastHuayuan.
-Suporta geração de vídeos com diferentes modelos e estilos.
+Endpoints para geração e edição de vídeos.
 """
 
-from typing import List, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, UploadFile
+from typing import List, Dict, Optional, Any
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, UploadFile, Query, Body
 from src.api.v2.schemas.requests.video import VideoGenerationRequest
 from src.api.v2.schemas.responses.video import VideoGenerationResponse
-from src.core.gpu.manager import gpu_manager
+from src.core.gpu.manager import gpu_manager, GPUManager
 from src.core.queue.manager import queue_manager
 from src.core.cache.manager import cache_manager
 from src.services.thumbnails import thumbnail_service
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 import tempfile
 import os
 from pathlib import Path
@@ -24,7 +23,7 @@ from src.services.video import VideoService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/generate/video", tags=["Geração de Vídeo"])
 video_system = VideoCompositionSystem()
 template_manager = TemplateManager()
 video_service = VideoService()
@@ -96,115 +95,186 @@ class Json2VideoRequest(BaseModel):
         description="Qualidade do vídeo (low, medium, high)"
     )
 
-@router.post("/generate", response_model=VideoGenerationResponse)
+class VideoEditRequest(BaseModel):
+    """
+    Modelo para requisição de edição de vídeo.
+    
+    Attributes:
+        operations: Lista de operações a serem aplicadas
+        output_format: Formato de saída desejado
+        quality: Qualidade do vídeo de saída
+    """
+    operations: List[Dict[str, Any]] = Field(..., description="Operações de edição")
+    output_format: str = Field("mp4", description="Formato de saída")
+    quality: str = Field("high", description="Qualidade do vídeo")
+
+@router.post(
+    "",
+    response_model=VideoGenerationResponse,
+    summary="Gerar Vídeo",
+    description="""
+    Gera um vídeo a partir de uma descrição textual.
+    
+    Features:
+    - Geração frame-a-frame com controle de movimento
+    - Suporte a áudio gerado por IA
+    - Múltiplos presets de estilo
+    - Controle de dimensões e FPS
+    """,
+    responses={
+        200: {
+            "description": "Vídeo em geração",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "vid_123",
+                        "status": "processing",
+                        "progress": 0,
+                        "estimated_time": 120
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Parâmetros inválidos"
+        },
+        429: {
+            "description": "Limite de requisições excedido"
+        }
+    }
+)
 async def generate_video(
     request: VideoGenerationRequest,
-    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user),
+    rate_limit = Depends(rate_limiter)
 ):
-    """
-    Gera um vídeo usando FastHuayuan baseado nos parâmetros fornecidos.
-    
-    Args:
-        request: Parâmetros para geração do vídeo
-        background_tasks: Tarefas em background do FastAPI
-    
-    Returns:
-        VideoGenerationResponse: Status da geração e ID da tarefa
-    
-    Raises:
-        HTTPException: Se houver erro na validação ou na geração
-    """
+    """Inicia geração de vídeo."""
     try:
-        # Verifica disponibilidade de GPU
-        gpu = await gpu_manager.get_available_gpu(
-            min_vram=12000  # Requer mais VRAM para vídeo
+        video_service = VideoService()
+        result = await video_service.generate(
+            prompt=request.prompt,
+            num_frames=request.num_frames,
+            fps=request.fps,
+            motion_scale=request.motion_scale,
+            width=request.width,
+            height=request.height,
+            audio_prompt=request.audio_prompt,
+            style_preset=request.style_preset,
+            user_id=current_user.id
         )
-        if not gpu:
-            raise HTTPException(
-                status_code=503,
-                detail="Nenhuma GPU com VRAM suficiente disponível"
-            )
-        
-        # Cria tarefa na fila
-        task_id = await queue_manager.enqueue_task(
-            task_type="video_generation",
-            params=request.dict(),
-            gpu_id=gpu.id,
-            priority=request.priority
-        )
-        
-        # Inicia processamento em background
-        background_tasks.add_task(
-            gpu_manager.process_task,
-            task_id=task_id,
-            gpu_id=gpu.id
-        )
-        
-        return VideoGenerationResponse(
-            task_id=task_id,
-            status="queued",
-            estimated_time=await gpu_manager.estimate_completion_time(
-                gpu.id,
-                task_type="video"
-            )
-        )
-        
+        return result
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao gerar vídeo: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/status/{task_id}", response_model=VideoGenerationResponse)
-async def get_generation_status(task_id: str):
-    """
-    Retorna o status atual de uma tarefa de geração de vídeo.
-    
-    Args:
-        task_id: ID da tarefa de geração
-    
-    Returns:
-        VideoGenerationResponse: Status atual da geração
-    
-    Raises:
-        HTTPException: Se a tarefa não for encontrada
-    """
+@router.get(
+    "/status/{video_id}",
+    response_model=VideoGenerationResponse,
+    summary="Status da Geração",
+    description="Retorna o status atual de uma geração de vídeo.",
+    responses={
+        200: {
+            "description": "Status obtido com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "vid_123",
+                        "status": "completed",
+                        "progress": 100,
+                        "url": "http://exemplo.com/videos/123.mp4",
+                        "preview_url": "http://exemplo.com/videos/123_preview.gif"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Vídeo não encontrado"
+        }
+    }
+)
+async def get_video_status(
+    video_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Obtém status de uma geração de vídeo."""
     try:
-        # Busca status no cache
-        status = await cache_manager.get(f"task:{task_id}")
-        if not status:
-            raise HTTPException(
-                status_code=404,
-                detail="Tarefa não encontrada"
-            )
-            
-        # Se o vídeo foi concluído e não tem preview, gera o thumbnail
-        if (
-            status.get("status") == "completed" 
-            and status.get("result_url") 
-            and not status.get("preview_url")
-        ):
-            video_path = status["result_url"]
-            try:
-                thumbnail_path, _ = await thumbnail_service.get_or_generate(
-                    video_path,
-                    animated=True,
-                    duration=3.0,
-                    fps=10
-                )
-                status["preview_url"] = thumbnail_path
-                await cache_manager.set(f"task:{task_id}", status)
-            except Exception as e:
-                # Não falha se o thumbnail não puder ser gerado
-                print(f"Erro ao gerar thumbnail: {str(e)}")
-            
-        return VideoGenerationResponse(**status)
-        
+        video_service = VideoService()
+        status = await video_service.get_status(video_id)
+        return status
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao buscar status: {str(e)}"
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.post(
+    "/edit",
+    summary="Editar Vídeo",
+    description="""
+    Aplica operações de edição em um vídeo existente.
+    
+    Operações suportadas:
+    - Corte temporal
+    - Redimensionamento
+    - Filtros e efeitos
+    - Adição de áudio
+    - Transições
+    """,
+    responses={
+        200: {
+            "description": "Edição iniciada com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "task_id": "edit_123",
+                        "status": "processing"
+                    }
+                }
+            }
+        }
+    }
+)
+async def edit_video(
+    video_id: str,
+    request: VideoEditRequest,
+    current_user = Depends(get_current_user)
+):
+    """Aplica edições em um vídeo."""
+    try:
+        video_service = VideoService()
+        result = await video_service.edit(
+            video_id=video_id,
+            operations=request.operations,
+            output_format=request.output_format,
+            quality=request.quality,
+            user_id=current_user.id
         )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post(
+    "/merge",
+    summary="Mesclar Vídeos",
+    description="Combina múltiplos vídeos em um único vídeo.",
+    responses={
+        200: {
+            "description": "Mesclagem iniciada com sucesso"
+        }
+    }
+)
+async def merge_videos(
+    video_ids: List[str],
+    transition_type: Optional[str] = "fade",
+    current_user = Depends(get_current_user)
+):
+    """Mescla múltiplos vídeos."""
+    try:
+        video_service = VideoService()
+        result = await video_service.merge(
+            video_ids=video_ids,
+            transition_type=transition_type,
+            user_id=current_user.id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/v2/video/create", response_model=VideoResponse)
 async def create_video(

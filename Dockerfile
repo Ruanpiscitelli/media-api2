@@ -1,5 +1,17 @@
-# Base image do RunPod
-FROM runpod/stable-diffusion:web-ui-13.0.0
+# Atualizar imagem base e versão do CUDA
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04
+
+# Adicionar OpenTelemetry e monitoramento
+RUN apt-get update && apt-get install -y \
+    ocl-icd-opencl-dev \
+    libgl1 \
+    libglib2.0-0 \
+    opentelemetry-sdk
+
+# Configurar NVLink
+ENV NVIDIA_DISABLE_REQUIRE=1
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_VISIBLE_DEVICES=all
 
 # Instalar dependências adicionais
 RUN apt-get update && apt-get install -y \
@@ -14,6 +26,10 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     pkg-config \
     libicu-dev \
+    cuda-nvlink-12-2 \
+    libnvidia-nvlink1 \
+    cuda-toolkit-12-2 \
+    libnvidia-compute-525 \
     && rm -rf /var/lib/apt/lists/*
 
 # Configurar diretórios
@@ -70,6 +86,13 @@ EXPOSE 8000 8188 6379
 # Copiar entrypoint
 COPY scripts/setup/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Configurar variáveis de ambiente para NVLink
+ENV NCCL_DEBUG=INFO
+ENV NCCL_NET_GDR_LEVEL=5
+
+# Instalar dependências adicionais
+RUN pip install torch==2.2.0+cu122 torchvision==0.17.0+cu122 torchaudio==2.2.0+cu122
 
 # Comando de inicialização
 ENTRYPOINT ["/entrypoint.sh"]

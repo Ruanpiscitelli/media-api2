@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- System Status -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-cpu"></i> System Status
+            </div>
+            <div class="card-body">
+                <div id="systemStatus">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GPU Usage -->
+    <div class="col-md-8 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-gpu-card"></i> GPU Usage
+            </div>
+            <div class="card-body">
+                <canvas id="gpuChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Queue Status -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-list-check"></i> Queue Status
+            </div>
+            <div class="card-body">
+                <canvas id="queueChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Tasks -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning">
+                <i class="bi bi-clock-history"></i> Recent Tasks
+            </div>
+            <div class="card-body">
+                <div id="recentTasks">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Processos em Execução -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-cpu-fill"></i> Running Processes
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-light" onclick="refreshProcesses()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>CPU %</th>
+                                <th>Memory %</th>
+                                <th>GPU</th>
+                                <th>Uptime</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processList">
+                            <tr>
+                                <td colspan="8" class="text-center">Loading processes...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div class="modal fade" id="confirmActionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to <span id="actionType">perform this action</span> on process <span id="processName">this process</span>?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Update system status
+async function updateSystemStatus() {
+    const token = localStorage.getItem('bearerToken');
+    try {
+        const response = await fetch('/api/v2/system/status', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await response.json();
+        
+        document.getElementById('systemStatus').innerHTML = `
+            <div class="d-flex justify-content-between mb-2">
+                <span>Status:</span>
+                <span class="badge bg-${data.status === 'online' ? 'success' : 'danger'}">
+                    ${data.status}
+                </span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span>Active Workers:</span>
+                <span>${data.active_workers}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Queue Size:</span>
+                <span>${data.queue_size}</span>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// GPU Usage Chart
+let gpuChart;
+async function updateGPUChart() {
+    const token = localStorage.getItem('bearerToken');
+    try {
+        const response = await fetch('/api/v2/system/gpu/status', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await response.json();
+        
+        const gpuData = {
+            labels: Object.keys(data.gpus),
+            datasets: [{
+                label: 'VRAM Usage (%)',
+                data: Object.values(data.gpus).map(gpu => gpu.vram_used_percent),
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        };
+        
+        if (!gpuChart) {
+            const ctx = document.getElementById('gpuChart').getContext('2d');
+            gpuChart = new Chart(ctx, {
+                type: 'bar',
+                data: gpuData,
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        } else {
+            gpuChart.data = gpuData;
+            gpuChart.update();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Gerenciamento de Processos
+let processesData = [];
+let confirmModal;
+
+async function fetchProcesses() {
+    try {
+        const data = await apiRequest('/api/v2/system/processes');
+        if (data) {
+            processesData = data.processes;
+            updateProcessesTable();
+        }
+    } catch (error) {
+        showToast('Error fetching processes', 'danger');
+    }
+}
+
+function updateProcessesTable() {
+    const tbody = document.getElementById('processList');
+    tbody.innerHTML = processesData.map(process => `
+        <tr>
+            <td>${process.pid}</td>
+            <td>
+                <span class="fw-bold">${process.name}</span>
+                <br>
+                <small class="text-muted">${process.command}</small>
+            </td>
+            <td>
+                <span class="badge bg-${getStatusColor(process.status)}">
+                    ${process.status}
+                </span>
+            </td>
+            <td>${process.cpu_percent.toFixed(1)}%</td>
+            <td>${process.memory_percent.toFixed(1)}%</td>
+            <td>
+                ${process.gpu_id !== null ? 
+                    `GPU ${process.gpu_id} (${process.gpu_memory_used}MB)` : 
+                    'N/A'}
+            </td>
+            <td>${formatUptime(process.uptime)}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-warning" 
+                            onclick="confirmAction('restart', ${process.pid}, '${process.name}')"
+                            title="Restart Process">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" 
+                            onclick="confirmAction('kill', ${process.pid}, '${process.name}')"
+                            title="Kill Process">
+                        <i class="bi bi-x-octagon"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'running': 'success',
+        'sleeping': 'info',
+        'stopped': 'warning',
+        'zombie': 'danger',
+        'dead': 'danger'
+    };
+    return colors[status.toLowerCase()] || 'secondary';
+}
+
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    
+    return parts.join(' ') || '< 1m';
+}
+
+function confirmAction(action, pid, name) {
+    if (!confirmModal) {
+        confirmModal = new bootstrap.Modal(document.getElementById('confirmActionModal'));
+    }
+    
+    const actionType = action === 'kill' ? 'terminate' : 'restart';
+    document.getElementById('actionType').textContent = actionType;
+    document.getElementById('processName').textContent = name;
+    
+    const confirmBtn = document.getElementById('confirmActionBtn');
+    confirmBtn.onclick = async () => {
+        confirmModal.hide();
+        await executeAction(action, pid);
+    };
+    
+    confirmBtn.onclick = async () => {
+        confirmModal.hide();
+        await executeAction(action, pid);
+    };
+    
+    confirmModal.show();
+}
+
+async function executeAction(action, pid) {
+    try {
+        const endpoint = `/api/v2/system/processes/${pid}/${action}`;
+        const result = await apiRequest(endpoint, { method: 'POST' });
+        
+        if (result) {
+            showToast(`Process ${action} request sent successfully`, 'success');
+            // Atualiza a lista após um breve delay
+            setTimeout(fetchProcesses, 1000);
+        }
+    } catch (error) {
+        showToast(`Error ${action}ing process: ${error}`, 'danger');
+    }
+}
+
+function refreshProcesses() {
+    fetchProcesses();
+    showToast('Process list refreshed', 'info');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    updateSystemStatus();
+    updateGPUChart();
+    // Update every 5 seconds
+    setInterval(updateSystemStatus, 5000);
+    setInterval(updateGPUChart, 5000);
+    fetchProcesses();
+    // Atualiza a cada 10 segundos
+    setInterval(fetchProcesses, 10000);
+});
+</script>
+{% endblock %} 

@@ -41,4 +41,15 @@ nvidia-cublas-cu12>=12.1.3.1
 nvidia-cuda-nvrtc-cu12>=12.1.105
 nvidia-cuda-runtime-cu12>=12.1.105
 triton>=2.1.0
-ninja>=1.11.1 
+ninja>=1.11.1
+
+# Adicionar/Atualizar dependências críticas
+torch==2.1.0+cu121
+torchvision==0.16.0+cu121
+torchaudio==2.1.0+cu121
+opentelemetry-exporter-jaeger==1.20.0
+fastapi-limiter==0.1.5
+
+# Novas dependências
+pynvml==11.5.0
+nvidia-ml-py3==7.352.0 

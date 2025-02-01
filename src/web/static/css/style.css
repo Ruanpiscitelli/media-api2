@@ -58,4 +58,97 @@
     margin-top: 1rem;
     border-radius: 0.25rem;
     font-family: monospace;
+}
+
+/* General Styles */
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Log Viewer */
+.log-container {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+    background: #1e1e1e;
+    padding: 1rem;
+    border-radius: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+}
+
+.log-entry {
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    display: flex;
+    gap: 1rem;
+    color: #d4d4d4;
+}
+
+.log-entry:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.log-entry .timestamp {
+    color: #569cd6;
+    min-width: 180px;
+}
+
+.log-entry .level {
+    min-width: 80px;
+    text-align: center;
+    padding: 0 8px;
+    border-radius: 3px;
+}
+
+.level-info {
+    background: #294f7d;
+    color: #569cd6;
+}
+
+.level-warning {
+    background: #664d03;
+    color: #ffc107;
+}
+
+.level-error {
+    background: #842029;
+    color: #dc3545;
+}
+
+/* Cards */
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+/* Charts */
+canvas {
+    width: 100% !important;
+    height: 300px !important;
+}
+
+/* Token Input */
+#bearerToken {
+    width: 300px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+}
+
+#bearerToken::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+/* Animations */
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
 } 

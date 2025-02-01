@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="bi bi-journal-text"></i> System Logs
+        </div>
+        <div class="d-flex gap-2">
+            <select id="logLevel" class="form-select form-select-sm" style="width: 100px;">
+                <option value="">All Levels</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+            </select>
+            <select id="logService" class="form-select form-select-sm" style="width: 120px;">
+                <option value="all">All Services</option>
+                <option value="api">API</option>
+                <option value="comfyui">ComfyUI</option>
+                <option value="system">System</option>
+            </select>
+            <button class="btn btn-sm btn-outline-light" onclick="clearLogs()">
+                <i class="bi bi-trash"></i> Clear
+            </button>
+            <button class="btn btn-sm btn-outline-light" onclick="downloadLogs()">
+                <i class="bi bi-download"></i> Download
+            </button>
+        </div>
+    </div>
+    <div class="card-body bg-dark">
+        <div id="logViewer" class="log-container">
+            <!-- Logs will be inserted here -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let lastLogId = null;
+
+async function fetchLogs() {
+    const token = localStorage.getItem('bearerToken');
+    const level = document.getElementById('logLevel').value;
+    const service = document.getElementById('logService').value;
+    
+    try {
+        const response = await fetch(`/api/v2/system/logs?level=${level}&service=${service}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await response.json();
+        
+        const logViewer = document.getElementById('logViewer');
+        logViewer.innerHTML = data.logs.map(log => `
+            <div class="log-entry ${log.level.toLowerCase()}">
+                <span class="timestamp">${log.timestamp}</span>
+                <span class="level level-${log.level.toLowerCase()}">${log.level}</span>
+                <span class="message">${log.message}</span>
+            </div>
+        `).join('');
+        
+        // Auto-scroll to bottom
+        logViewer.scrollTop = logViewer.scrollHeight;
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    fetchLogs();
+    // Update logs every 2 seconds
+    setInterval(fetchLogs, 2000);
+    
+    // Add event listeners for filters
+    document.getElementById('logLevel').addEventListener('change', fetchLogs);
+    document.getElementById('logService').addEventListener('change', fetchLogs);
+});
+
+function downloadLogs() {
+    const logContent = document.getElementById('logViewer').innerText;
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `system_logs_${new Date().toISOString()}.txt`;
+    a.click();
+}
+
+function clearLogs() {
+    document.getElementById('logViewer').innerHTML = '';
+}
+</script>
+{% endblock %} 
