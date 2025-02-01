@@ -58,9 +58,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
     
     # ComfyUI
-    COMFY_SERVER_HOST: str = os.getenv("COMFY_SERVER_HOST", "localhost")
-    COMFY_SERVER_PORT: int = int(os.getenv("COMFY_SERVER_PORT", "8188"))
-    COMFY_WEBSOCKET_PORT: int = int(os.getenv("COMFY_WEBSOCKET_PORT", "8188"))
+    COMFY_HOST: str = os.getenv("COMFY_HOST", "localhost")
+    COMFY_PORT: int = int(os.getenv("COMFY_PORT", "8188"))
+    COMFY_API_URL: str = f"http://{COMFY_HOST}:{COMFY_PORT}/api"
+    COMFY_WS_URL: str = f"ws://{COMFY_HOST}:{COMFY_PORT}/ws"
+    COMFY_TIMEOUT: int = int(os.getenv("COMFY_TIMEOUT", "300"))
     
     class Config:
         """Configurações do Pydantic."""

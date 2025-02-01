@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import websockets
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +18,14 @@ class ComfyUIError(Exception):
     pass
 
 class ComfyUIService:
-    def __init__(self, host: str = "localhost", port: int = 8188):
+    def __init__(self):
         """
         Inicializa o serviço ComfyUI.
-        
-        Args:
-            host: Host do servidor ComfyUI
-            port: Porta do servidor ComfyUI
         """
-        self.host = host
-        self.port = port
-        self.api_url = f"http://{host}:{port}/api"
-        self.ws_url = f"ws://{host}:{port}/ws"
+        self.host = settings.COMFY_HOST
+        self.port = settings.COMFY_PORT
+        self.api_url = settings.COMFY_API_URL
+        self.ws_url = settings.COMFY_WS_URL
         self.session: Optional[aiohttp.ClientSession] = None
         
         # Diretório base do projeto

@@ -13,7 +13,9 @@ class ComfyServer:
     
     def __init__(self):
         """Inicializa o cliente ComfyUI."""
-        self.base_url = f"http://{settings.COMFY_HOST}:{settings.COMFY_PORT}"
+        self.base_url = settings.COMFY_API_URL
+        self.ws_url = settings.COMFY_WS_URL
+        self.timeout = settings.COMFY_TIMEOUT
         self.api_key = settings.COMFY_API_KEY
         self.session = None
     
