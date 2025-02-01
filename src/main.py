@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import psutil
 import torch
 from datetime import datetime
-from src.services.comfy_server import comfy_server
+from src.services.comfy_server import get_comfy_server, ComfyServer
 from src.comfy.template_manager import TemplateManager
 
 # Core imports
@@ -181,23 +181,52 @@ routers = [
 for router, tag in routers:
     app.include_router(router, prefix=API_V2_PREFIX, tags=[tag])
 
-# Verificações do sistema
+# Dependency para injetar o ComfyServer
+async def get_comfy():
+    return await get_comfy_server()
+
+@asynccontextmanager
+async def get_comfy_context():
+    comfy = await get_comfy_server()
+    try:
+        yield comfy
+    finally:
+        await comfy.close()
+
 @app.on_event("startup")
 async def startup_event():
-    """Executar verificações na inicialização"""
+    """Inicializa serviços na startup da API"""
     try:
+        # Executar verificações do sistema
         run_system_checks()
-        logger.info("Verificações do sistema concluídas com sucesso")
+        logger.info("✅ Verificações do sistema concluídas")
+
+        # Inicializar ComfyUI
+        comfy = await get_comfy_server()
+        if not await comfy.verify_connection():
+            logger.error("❌ Não foi possível conectar ao ComfyUI")
+            raise RuntimeError("ComfyUI não está acessível")
+        logger.info("✅ Conexão com ComfyUI estabelecida")
+        
     except Exception as e:
-        logger.error(f"Erro nas verificações do sistema: {e}")
+        logger.error(f"❌ Erro na inicialização: {e}")
         raise
 
-# Rota de health check
-@app.get("/health", tags=["Health"])
-async def health_check():
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Limpa recursos na finalização da API"""
+    try:
+        comfy = await get_comfy_server()
+        await comfy.close()
+        logger.info("✅ Conexão com ComfyUI fechada")
+    except Exception as e:
+        logger.error(f"❌ Erro no shutdown: {e}")
+
+@app.get("/health")
+async def health_check(comfy: ComfyServer = Depends(get_comfy)):
     """
     Endpoint para verificar status da API com monitoramento detalhado do sistema.
-    Retorna informações sobre serviços, recursos e métricas do sistema.
+    Retorna informações sobre serviços, recursos e métricas.
     """
     try:
         start_time = time.time()
@@ -210,18 +239,15 @@ async def health_check():
             "timestamp": datetime.utcnow().isoformat()
         }
 
-        # Verificar status do ComfyUI
+        # Verificar ComfyUI
         try:
-            comfy_status = await comfy_server.get_status()
+            comfy_status = await comfy.get_status()
             health_data["services"]["comfy"] = {
                 "status": "ok" if comfy_status.get('ready', False) else "error",
                 "details": comfy_status
             }
         except Exception as e:
-            health_data["services"]["comfy"] = {
-                "status": "error",
-                "error": str(e)
-            }
+            health_data["services"]["comfy"] = {"status": "error", "error": str(e)}
 
         # Verificar GPUs
         try:
@@ -251,69 +277,11 @@ async def health_check():
                 "devices": gpu_info
             }
         except Exception as e:
-            health_data["resources"]["gpu"] = {
-                "status": "error",
-                "error": str(e)
-            }
+            health_data["resources"]["gpu"] = {"status": "error", "error": str(e)}
 
-        # Verificar templates
+        # Verificar recursos do sistema
         try:
-            template_manager = TemplateManager()
-            templates = template_manager.list_templates()
-            health_data["services"]["templates"] = {
-                "count": len(templates),
-                "status": "ok" if len(templates) > 0 else "warning",
-                "categories": {}
-            }
-
-            # Contar templates por categoria
-            for template in templates:
-                category = template.metadata.category or "uncategorized"
-                if category not in health_data["services"]["templates"]["categories"]:
-                    health_data["services"]["templates"]["categories"][category] = 0
-                health_data["services"]["templates"]["categories"][category] += 1
-
-        except Exception as e:
-            health_data["services"]["templates"] = {
-                "status": "error",
-                "error": str(e)
-            }
-
-        # Verificar memória do sistema
-        try:
-            process = psutil.Process()
-            memory_info = process.memory_info()
-            system = psutil.virtual_memory()
-            swap = psutil.swap_memory()
-
-            health_data["resources"]["memory"] = {
-                "process": {
-                    "rss": memory_info.rss / (1024 * 1024),  # MB
-                    "vms": memory_info.vms / (1024 * 1024),  # MB
-                    "shared": getattr(memory_info, 'shared', 0) / (1024 * 1024),  # MB
-                    "data": getattr(memory_info, 'data', 0) / (1024 * 1024)  # MB
-                },
-                "system": {
-                    "total": system.total / (1024 * 1024),  # MB
-                    "available": system.available / (1024 * 1024),  # MB
-                    "used": system.used / (1024 * 1024),  # MB
-                    "percent": system.percent
-                },
-                "swap": {
-                    "total": swap.total / (1024 * 1024),  # MB
-                    "used": swap.used / (1024 * 1024),  # MB
-                    "free": swap.free / (1024 * 1024),  # MB
-                    "percent": swap.percent
-                }
-            }
-        except Exception as e:
-            health_data["resources"]["memory"] = {
-                "status": "error",
-                "error": str(e)
-            }
-
-        # Verificar CPU
-        try:
+            # CPU
             cpu_info = {
                 "percent": psutil.cpu_percent(interval=1),
                 "count": {
@@ -328,26 +296,35 @@ async def health_check():
                 "load_average": psutil.getloadavg()
             }
             health_data["resources"]["cpu"] = cpu_info
-        except Exception as e:
-            health_data["resources"]["cpu"] = {
-                "status": "error",
-                "error": str(e)
+
+            # Memória
+            memory = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            health_data["resources"]["memory"] = {
+                "system": {
+                    "total": memory.total / (1024**3),  # GB
+                    "available": memory.available / (1024**3),
+                    "used": memory.used / (1024**3),
+                    "percent": memory.percent
+                },
+                "swap": {
+                    "total": swap.total / (1024**3),
+                    "used": swap.used / (1024**3),
+                    "free": swap.free / (1024**3),
+                    "percent": swap.percent
+                }
             }
 
-        # Verificar disco
-        try:
+            # Disco
             disk = psutil.disk_usage('/')
             health_data["resources"]["disk"] = {
-                "total": disk.total / (1024 * 1024 * 1024),  # GB
-                "used": disk.used / (1024 * 1024 * 1024),  # GB
-                "free": disk.free / (1024 * 1024 * 1024),  # GB
+                "total": disk.total / (1024**3),
+                "used": disk.used / (1024**3),
+                "free": disk.free / (1024**3),
                 "percent": disk.percent
             }
         except Exception as e:
-            health_data["resources"]["disk"] = {
-                "status": "error",
-                "error": str(e)
-            }
+            health_data["resources"]["system"] = {"status": "error", "error": str(e)}
 
         # Métricas da aplicação
         health_data["metrics"] = {
@@ -355,20 +332,20 @@ async def health_check():
             "uptime": time.time() - psutil.Process().create_time()
         }
 
-        # Determinar status geral
-        if any(service.get("status") == "error" for service in health_data["services"].values()):
+        # Verificar status geral
+        if any(
+            service.get("status") == "error" 
+            for service in health_data["services"].values()
+        ):
             health_data["status"] = "unhealthy"
             return JSONResponse(status_code=503, content=health_data)
 
-        return JSONResponse(status_code=200, content=health_data)
+        return health_data
 
     except Exception as e:
         logger.error(f"Erro no health check: {e}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        )
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }

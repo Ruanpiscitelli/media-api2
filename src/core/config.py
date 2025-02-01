@@ -205,10 +205,22 @@ class Settings(BaseSettings):
     temp_file_max_age: int = Field(default=3600)
     
     # ComfyUI
-    COMFY_API_URL: str = "http://localhost:8188"
-    COMFY_WS_URL: str = "ws://localhost:8188/ws"
-    COMFY_TIMEOUT: int = 30
-    COMFY_API_KEY: Optional[str] = None
+    COMFY_API_URL: str = Field(
+        default="http://localhost:8188",
+        description="URL base da API do ComfyUI"
+    )
+    COMFY_WS_URL: str = Field(
+        default="ws://localhost:8188/ws",
+        description="URL do WebSocket do ComfyUI"
+    )
+    COMFY_TIMEOUT: int = Field(
+        default=30,
+        description="Timeout para requisições ao ComfyUI em segundos"
+    )
+    COMFY_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Chave de API opcional para o ComfyUI"
+    )
     max_concurrent_renders: int = Field(default=4)
     max_render_time: int = Field(default=300)
     max_video_length: int = Field(default=300)

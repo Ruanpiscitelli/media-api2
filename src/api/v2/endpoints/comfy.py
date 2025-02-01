@@ -18,6 +18,8 @@ from src.comfy.workflow_manager import WorkflowManager
 from src.core.gpu.manager import GPUManager
 from src.services.auth import get_current_user
 from src.monitoring.metrics import workflow_metrics
+from src.core.dependencies import get_comfy
+from src.services.comfy_server import ComfyServer
 
 router = APIRouter(prefix="/comfy", tags=["ComfyUI Integration"])
 
@@ -174,4 +176,11 @@ async def get_workflow_results(
         return results
         
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/status")
+async def get_comfy_status(
+    comfy: ComfyServer = Depends(get_comfy)
+):
+    """Retorna status do servidor ComfyUI."""
+    return await comfy.get_status() 
