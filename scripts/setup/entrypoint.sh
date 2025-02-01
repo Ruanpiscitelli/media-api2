@@ -49,21 +49,42 @@ port 6379
 maxmemory 8gb
 maxmemory-policy allkeys-lru
 daemonize yes
+supervised systemd
+dir /var/lib/redis
+pidfile /var/run/redis/redis-server.pid
 EOF
 
-# Iniciar Redis em background
-redis-server /etc/redis/redis.conf
+# Garantir que diretórios existam e permissões estejam corretas
+mkdir -p /var/lib/redis /var/run/redis
+chown -R redis:redis /var/lib/redis /var/run/redis /etc/redis
+chmod 750 /var/lib/redis /var/run/redis
+
+# Parar qualquer instância existente do Redis
+service redis-server stop || true
+killall -9 redis-server || true
+
+# Iniciar Redis como serviço
+service redis-server start
 
 # Verificar se Redis iniciou
 echo "Aguardando Redis iniciar..."
 for i in {1..30}; do
+  echo "Tentativa $i de 30..."
   if redis-cli ping > /dev/null 2>&1; then
     echo "Redis iniciado com sucesso!"
     break
   fi
+  # Se Redis não iniciou, tentar iniciar novamente
+  if [ $i -eq 15 ]; then
+    echo "Tentando reiniciar Redis..."
+    service redis-server restart
+  fi
   sleep 1
   if [ $i -eq 30 ]; then
-    echo "Erro: Timeout aguardando Redis iniciar"
+    echo "Erro: Timeout aguardando Redis iniciar. Verificando status:"
+    service redis-server status
+    echo "Logs do Redis:"
+    tail -n 20 /var/log/redis/redis-server.log
     exit 1
   fi
 done
