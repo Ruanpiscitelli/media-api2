@@ -16,7 +16,7 @@ import psutil
 import gc
 
 from src.config.gpu_config import get_gpu_config
-from src.core.cache import Cache
+from src.core.cache import Cache, cache_manager
 from src.core.errors import InsufficientVRAMError, PreemptionError
 
 # Configuração de logging

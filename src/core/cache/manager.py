@@ -218,4 +218,7 @@ class Cache:
         return await self.manager.clear(self.namespace)
 
 # Instância global do gerenciador de cache
-cache_manager = CacheManager() 
+cache_manager = CacheManager()
+
+# Garantir que Cache está disponível para importação
+__all__ = ['CacheManager', 'CacheError', 'cache_manager', 'Cache'] 
