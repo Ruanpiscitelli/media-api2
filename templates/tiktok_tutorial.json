@@ -1,0 +1,216 @@
+{
+    "name": "tiktok_tutorial",
+    "description": "Template para tutoriais do TikTok com passos numerados",
+    "version": "1.0",
+    "preview": "/media/previews/tiktok_tutorial.jpg",
+    "duration": 60,
+    
+    "required_params": [
+        "steps",
+        "background_music",
+        "creator_info"
+    ],
+    
+    "param_types": {
+        "steps": "list",
+        "background_music": "str",
+        "creator_info": "dict",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 60,
+        "width": 1080,
+        "height": 1920
+    },
+    
+    "scenes": [
+        {
+            "duration": 3.0,
+            "elements": [
+                {
+                    "type": "text",
+                    "placeholder": "steps[0].title",
+                    "position": {"x": 0.5, "y": 0.3},
+                    "style": {
+                        "fontSize": 56,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Poppins-ExtraBold",
+                        "textAlign": "center",
+                        "maxWidth": 900,
+                        "animation": {
+                            "type": "scale",
+                            "duration": 0.5
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "content": "Tutorial",
+                    "position": {"x": 0.5, "y": 0.4},
+                    "style": {
+                        "fontSize": 36,
+                        "color": "#FF004D",
+                        "fontFamily": "Poppins-Bold",
+                        "animation": {
+                            "type": "slide",
+                            "from": "bottom",
+                            "duration": 0.5
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "duration": 57.0,
+            "elements": [
+                {
+                    "type": "step_container",
+                    "placeholder": "steps",
+                    "style": {
+                        "layout": "vertical",
+                        "spacing": 20,
+                        "step": {
+                            "duration": 10.0,
+                            "transition": {
+                                "type": "slide",
+                                "duration": 0.5
+                            }
+                        }
+                    },
+                    "elements": [
+                        {
+                            "type": "number",
+                            "position": {"x": 0.1, "y": 0.5},
+                            "style": {
+                                "fontSize": 72,
+                                "color": "#FF004D",
+                                "fontFamily": "Poppins-Black",
+                                "background": {
+                                    "type": "circle",
+                                    "color": "#FFFFFF",
+                                    "size": 100
+                                }
+                            }
+                        },
+                        {
+                            "type": "video",
+                            "placeholder": "step.video",
+                            "position": {"x": 0.5, "y": 0.5},
+                            "style": {
+                                "size": {
+                                    "width": 900,
+                                    "height": 600
+                                },
+                                "border": {
+                                    "color": "#FFFFFF",
+                                    "width": 4,
+                                    "radius": 20
+                                }
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "placeholder": "step.description",
+                            "position": {"x": 0.5, "y": 0.8},
+                            "style": {
+                                "fontSize": 32,
+                                "color": "#FFFFFF",
+                                "fontFamily": "Poppins-SemiBold",
+                                "textAlign": "center",
+                                "maxWidth": 800,
+                                "background": {
+                                    "type": "solid",
+                                    "color": "#000000",
+                                    "opacity": 0.7,
+                                    "padding": 15,
+                                    "radius": 10
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "progress",
+                    "position": {"x": 0.5, "y": 0.05},
+                    "style": {
+                        "width": 900,
+                        "height": 6,
+                        "color": "#FF004D",
+                        "background": "#FFFFFF33"
+                    }
+                }
+            ]
+        }
+    ],
+    
+    "audio": {
+        "music": {
+            "placeholder": "background_music",
+            "volume": 0.4,
+            "fade": {
+                "in": 0.5,
+                "out": 0.5
+            }
+        },
+        "effects": {
+            "transition": {
+                "file": "whoosh.mp3",
+                "volume": 0.3
+            }
+        }
+    },
+    
+    "effects": {
+        "video": {
+            "filters": {
+                "brightness": 1.1,
+                "contrast": 1.2
+            }
+        },
+        "transitions": {
+            "type": "slide",
+            "duration": 0.3
+        },
+        "overlay": {
+            "creator": {
+                "type": "profile",
+                "position": {"x": 0.1, "y": 0.95},
+                "style": {
+                    "avatar": {
+                        "size": 60,
+                        "border": {
+                            "color": "#FFFFFF",
+                            "width": 2
+                        }
+                    },
+                    "name": {
+                        "fontSize": 24,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Poppins-SemiBold"
+                    }
+                }
+            }
+        },
+        "engagement": {
+            "follow_reminder": {
+                "enabled": true,
+                "position": {"x": 0.9, "y": 0.95},
+                "style": {
+                    "icon": {
+                        "type": "plus",
+                        "color": "#FF004D",
+                        "size": 40
+                    },
+                    "text": {
+                        "content": "Follow for more",
+                        "fontSize": 24,
+                        "color": "#FFFFFF"
+                    }
+                }
+            }
+        }
+    }
+} 

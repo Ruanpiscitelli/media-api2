@@ -1,0 +1,43 @@
+{
+    "workflows": {
+        "sdxl_base": {
+            "description": "Workflow básico SDXL",
+            "vram_estimate": 8500,
+            "nodes": ["LoadCheckpoint", "KSampler", "VAEDecode", "SaveImage"]
+        },
+        "sdxl_lora": {
+            "description": "SDXL com LoRA",
+            "vram_estimate": 9000,
+            "nodes": ["LoadCheckpoint", "LoadLoRA", "KSampler", "VAEDecode", "SaveImage"]
+        },
+        "sdxl_inpainting": {
+            "description": "SDXL com inpainting",
+            "vram_estimate": 9500,
+            "nodes": ["LoadCheckpoint", "LoadImage", "KSampler", "VAEDecode", "SaveImage"]
+        },
+        "sdxl_controlnet": {
+            "description": "SDXL com ControlNet",
+            "vram_estimate": 10000,
+            "nodes": ["LoadCheckpoint", "ControlNet", "KSampler", "VAEDecode", "SaveImage"]
+        },
+        "sdxl_animation": {
+            "description": "SDXL para animação",
+            "vram_estimate": 12000,
+            "nodes": ["LoadCheckpoint", "AnimationPipeline", "KSampler", "VAEDecode", "SaveImage"]
+        }
+    },
+    "node_estimates": {
+        "LoadCheckpoint": 6000,
+        "LoadLoRA": 500,
+        "KSampler": 1000,
+        "VAEDecode": 1000,
+        "SaveImage": 100,
+        "LoadImage": 200,
+        "ControlNet": 2000,
+        "AnimationPipeline": 4000
+    },
+    "base_requirements": {
+        "comfyui": 4000,
+        "cuda_context": 1000
+    }
+} 

@@ -1,0 +1,121 @@
+{
+    "name": "youtube_intro",
+    "description": "Template para intro de vídeos do YouTube",
+    "version": "1.0",
+    "preview": "/media/previews/youtube_intro.jpg",
+    "duration": 10,
+    
+    "required_params": [
+        "channel_name",
+        "logo_url",
+        "background_video",
+        "background_music"
+    ],
+    
+    "param_types": {
+        "channel_name": "str",
+        "logo_url": "str",
+        "background_video": "str",
+        "background_music": "str",
+        "color_scheme": "dict",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 60,
+        "width": 1920,
+        "height": 1080
+    },
+    
+    "scenes": [
+        {
+            "duration": 3.0,
+            "elements": [
+                {
+                    "type": "video",
+                    "placeholder": "background_video",
+                    "position": {"x": 0.5, "y": 0.5},
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        },
+                        "blur": 5,
+                        "brightness": 0.7
+                    }
+                },
+                {
+                    "type": "image",
+                    "placeholder": "logo_url",
+                    "position": {"x": 0.5, "y": 0.4},
+                    "style": {
+                        "size": {
+                            "width": 300,
+                            "height": 300
+                        },
+                        "animation": {
+                            "type": "scale",
+                            "from": 0.5,
+                            "to": 1.0,
+                            "duration": 1.0,
+                            "easing": "easeOutElastic"
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "placeholder": "channel_name",
+                    "position": {"x": 0.5, "y": 0.7},
+                    "style": {
+                        "fontSize": 72,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Montserrat-Bold",
+                        "shadow": {
+                            "color": "#000000",
+                            "blur": 15,
+                            "offset": {"x": 0, "y": 2}
+                        },
+                        "animation": {
+                            "type": "slide",
+                            "from": "bottom",
+                            "duration": 0.8,
+                            "easing": "easeOutBack"
+                        }
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 0.5
+            }
+        }
+    ],
+    
+    "audio": {
+        "music": {
+            "placeholder": "background_music",
+            "volume": 0.4,
+            "fade": {
+                "in": 0.5,
+                "out": 0.5
+            }
+        }
+    },
+    
+    "effects": {
+        "color_grading": {
+            "contrast": 1.1,
+            "saturation": 1.2,
+            "brightness": 1.0
+        },
+        "particles": {
+            "enabled": true,
+            "type": "sparkle",
+            "count": 50,
+            "color": "#FFFFFF",
+            "opacity": 0.5
+        }
+    }
+} 

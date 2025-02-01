@@ -1,0 +1,298 @@
+{
+    "video": {
+        "model_name": "fast-huayuan/video-xl",
+        "styles": [
+            {
+                "id": "cinematic",
+                "name": "Cinematográfico",
+                "description": "Estilo de filme com cores vibrantes",
+                "params": {
+                    "motion_scale": 1.2,
+                    "color_grading": {
+                        "contrast": 1.2,
+                        "saturation": 1.1,
+                        "brightness": 1.05
+                    }
+                }
+            },
+            {
+                "id": "vlog",
+                "name": "Vlog",
+                "description": "Estilo casual e dinâmico",
+                "params": {
+                    "motion_scale": 1.0,
+                    "color_grading": {
+                        "contrast": 1.1,
+                        "saturation": 1.05,
+                        "brightness": 1.1
+                    }
+                }
+            },
+            {
+                "id": "gaming",
+                "name": "Gaming",
+                "description": "Estilo vibrante para jogos",
+                "params": {
+                    "motion_scale": 1.3,
+                    "color_grading": {
+                        "contrast": 1.3,
+                        "saturation": 1.2,
+                        "brightness": 1.1
+                    }
+                }
+            }
+        ],
+        "generation": {
+            "fps": 30,
+            "width": 1080,
+            "height": 1920,
+            "min_duration": 15,
+            "max_duration": 60,
+            "default_duration": 30
+        }
+    },
+    "music": {
+        "model_name": "suno/musicgen-large",
+        "styles": [
+            {
+                "id": "energetic",
+                "name": "Energético",
+                "description": "Música animada e motivacional",
+                "prompt_template": "Uma música energética e motivacional com {instruments}"
+            },
+            {
+                "id": "ambient",
+                "name": "Ambiente",
+                "description": "Música calma de fundo",
+                "prompt_template": "Uma música ambiente suave com {instruments}"
+            },
+            {
+                "id": "epic",
+                "name": "Épico",
+                "description": "Música dramática e impactante",
+                "prompt_template": "Uma música épica e dramática com {instruments}"
+            }
+        ]
+    },
+    "voice": {
+        "model_name": "suno/bark-voice",
+        "available_voices": [
+            {
+                "id": "pt_br_female_1",
+                "name": "Ana",
+                "gender": "female",
+                "language": "pt-BR",
+                "description": "Voz feminina profissional em português",
+                "styles": ["narração", "explicativo"]
+            },
+            {
+                "id": "pt_br_male_1",
+                "name": "João",
+                "gender": "male",
+                "language": "pt-BR",
+                "description": "Voz masculina jovem em português",
+                "styles": ["casual", "gaming"]
+            }
+        ]
+    },
+    "templates": {
+        "default": {
+            "name": "Default Short",
+            "description": "Template padrão para shorts",
+            "version": "1.0",
+            "preview": "/media/previews/default_short.jpg",
+            "scenes": [
+                {
+                    "duration": "video_duration",
+                    "elements": [
+                        {
+                            "type": "video",
+                            "position": {"x": 0.5, "y": 0.5},
+                            "style": {
+                                "size": {
+                                    "width": 1080,
+                                    "height": 1920
+                                },
+                                "zoom": {
+                                    "enabled": true,
+                                    "scale": 1.1,
+                                    "duration": "video_duration"
+                                }
+                            }
+                        },
+                        {
+                            "type": "title",
+                            "position": {"x": 0.5, "y": 0.1},
+                            "style": {
+                                "fontSize": 48,
+                                "fontFamily": "Roboto-Bold",
+                                "color": "#FFFFFF",
+                                "background": {
+                                    "type": "gradient",
+                                    "colors": ["#000000CC", "#00000000"],
+                                    "opacity": 0.8
+                                },
+                                "animation": {
+                                    "type": "slide",
+                                    "duration": 0.5
+                                }
+                            }
+                        },
+                        {
+                            "type": "hashtags",
+                            "position": {"x": 0.5, "y": 0.95},
+                            "style": {
+                                "fontSize": 32,
+                                "fontFamily": "Roboto-Medium",
+                                "color": "#FFFFFF",
+                                "background": {
+                                    "type": "solid",
+                                    "color": "#000000",
+                                    "opacity": 0.7
+                                }
+                            }
+                        },
+                        {
+                            "type": "watermark",
+                            "position": {"x": 0.95, "y": 0.05},
+                            "style": {
+                                "fontSize": 32,
+                                "fontFamily": "Roboto-Medium",
+                                "color": "#FFFFFF",
+                                "opacity": 0.8
+                            }
+                        }
+                    ]
+                }
+            ],
+            "audio": {
+                "music": {
+                    "volume": 0.3,
+                    "fade": {
+                        "in": 1.0,
+                        "out": 1.0
+                    }
+                },
+                "voice": {
+                    "volume": 1.0,
+                    "fade": {
+                        "in": 0.3,
+                        "out": 0.3
+                    }
+                }
+            },
+            "effects": {
+                "transitions": {
+                    "type": "fade",
+                    "duration": 0.3
+                },
+                "filters": {
+                    "brightness": 1.1,
+                    "contrast": 1.2,
+                    "saturation": 1.1
+                }
+            }
+        },
+        "gaming": {
+            "name": "Gaming Short",
+            "description": "Template otimizado para conteúdo de jogos",
+            "version": "1.0",
+            "preview": "/media/previews/gaming_short.jpg",
+            "scenes": [
+                {
+                    "duration": "video_duration",
+                    "elements": [
+                        {
+                            "type": "video",
+                            "position": {"x": 0.5, "y": 0.5},
+                            "style": {
+                                "size": {
+                                    "width": 1080,
+                                    "height": 1920
+                                }
+                            }
+                        },
+                        {
+                            "type": "title",
+                            "position": {"x": 0.5, "y": 0.1},
+                            "style": {
+                                "fontSize": 52,
+                                "fontFamily": "Gaming",
+                                "color": "#00FF00",
+                                "glow": {
+                                    "color": "#00FF00",
+                                    "radius": 10
+                                },
+                                "animation": {
+                                    "type": "glitch",
+                                    "duration": 0.3
+                                }
+                            }
+                        },
+                        {
+                            "type": "hashtags",
+                            "position": {"x": 0.5, "y": 0.95},
+                            "style": {
+                                "fontSize": 36,
+                                "fontFamily": "Gaming",
+                                "color": "#00FF00",
+                                "glow": {
+                                    "color": "#00FF00",
+                                    "radius": 5
+                                }
+                            }
+                        }
+                    ]
+                }
+            ],
+            "audio": {
+                "music": {
+                    "volume": 0.4,
+                    "fade": {
+                        "in": 0.5,
+                        "out": 0.5
+                    }
+                },
+                "voice": {
+                    "volume": 1.0,
+                    "effects": {
+                        "compression": true,
+                        "noise_gate": true
+                    }
+                }
+            },
+            "effects": {
+                "transitions": {
+                    "type": "glitch",
+                    "duration": 0.2
+                },
+                "filters": {
+                    "brightness": 1.2,
+                    "contrast": 1.3,
+                    "saturation": 1.2,
+                    "rgb_shift": {
+                        "enabled": true,
+                        "amount": 0.5
+                    }
+                }
+            }
+        }
+    },
+    "system": {
+        "cache": {
+            "max_size": "20GB",
+            "ttl": 3600,
+            "cleanup_interval": 300
+        },
+        "gpu": {
+            "min_vram": "8GB",
+            "preferred_vram": "12GB",
+            "max_batch_size": 2
+        },
+        "output": {
+            "base_url": "/media/shorts",
+            "directory": "outputs/shorts",
+            "max_file_age": 86400
+        }
+    }
+} 

@@ -1,0 +1,135 @@
+{
+    "name": "narration",
+    "description": "Template para vídeo com narração e música de fundo",
+    "version": "1.0",
+    "preview": "/media/previews/narration.jpg",
+    "duration": 60,
+    
+    "required_params": [
+        "title",
+        "narration_text",
+        "images",
+        "background_music"
+    ],
+    
+    "param_types": {
+        "title": "str",
+        "narration_text": "str",
+        "images": "list",
+        "background_music": "str",
+        "voice_id": "str",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1920,
+        "height": 1080
+    },
+    
+    "scenes": [
+        {
+            "duration": 5.0,
+            "elements": [
+                {
+                    "type": "text",
+                    "placeholder": "title",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "fontSize": 72,
+                        "color": "#FFFFFF",
+                        "fontFamily": "OpenSans-Bold"
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 1.0
+            }
+        },
+        {
+            "duration": 15.0,
+            "elements": [
+                {
+                    "type": "image",
+                    "placeholder": "images[0]",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "placeholder": "narration_text",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.9
+                    },
+                    "style": {
+                        "fontSize": 36,
+                        "color": "#FFFFFF",
+                        "fontFamily": "OpenSans-Regular",
+                        "background": {
+                            "color": "#000000",
+                            "opacity": 0.7,
+                            "padding": 20
+                        }
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 0.5
+            }
+        }
+    ],
+    
+    "audio": {
+        "narration": {
+            "text": {
+                "placeholder": "narration_text"
+            },
+            "voice": {
+                "placeholder": "voice_id",
+                "default": "default"
+            },
+            "volume": 1.0
+        },
+        "music": {
+            "placeholder": "background_music",
+            "volume": 0.2,
+            "fade": {
+                "in": 2.0,
+                "out": 2.0
+            }
+        }
+    },
+    
+    "effects": {
+        "text": {
+            "animation": {
+                "type": "typewriter",
+                "duration": 0.5
+            }
+        },
+        "audio": {
+            "ducking": {
+                "threshold": -20,
+                "ratio": 4,
+                "attack": 0.2,
+                "release": 0.5
+            }
+        }
+    }
+} 

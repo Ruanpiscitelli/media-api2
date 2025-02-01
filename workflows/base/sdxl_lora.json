@@ -1,0 +1,142 @@
+{
+    "id": "sdxl_lora_v1",
+    "name": "SDXL LoRA Workflow",
+    "version": "1.0",
+    "description": "Workflow otimizado para uso com LoRAs",
+    "nodes": {
+        "prompt_positive": {
+            "id": 1,
+            "type": "CLIPTextEncode",
+            "pos": [150, 50],
+            "size": {"width": 400, "height": 200},
+            "flags": {},
+            "order": 0,
+            "inputs": {
+                "text": "",
+                "clip": ["clip", ""],
+                "token_normalization": "none",
+                "weight_interpretation": "comfy"
+            }
+        },
+        "prompt_negative": {
+            "id": 2,
+            "type": "CLIPTextEncode",
+            "pos": [150, 300],
+            "size": {"width": 400, "height": 200},
+            "flags": {},
+            "order": 1,
+            "inputs": {
+                "text": "",
+                "clip": ["clip", ""]
+            }
+        },
+        "checkpoint": {
+            "id": 3,
+            "type": "CheckpointLoaderSimple",
+            "pos": [50, 50],
+            "size": {"width": 300, "height": 100},
+            "flags": {},
+            "order": 2,
+            "inputs": {
+                "ckpt_name": "sd_xl_base_1.0.safetensors"
+            }
+        },
+        "lora_loader": {
+            "id": 8,
+            "type": "LoraLoader",
+            "pos": [300, 200],
+            "size": {"width": 300, "height": 150},
+            "flags": {},
+            "order": 3,
+            "inputs": {
+                "model": ["3", 0],
+                "clip": ["3", 1],
+                "lora_name": "",
+                "strength_model": 1.0,
+                "strength_clip": 1.0
+            }
+        },
+        "empty_latent": {
+            "id": 4,
+            "type": "EmptyLatentImage",
+            "pos": [400, 50],
+            "size": {"width": 300, "height": 100},
+            "flags": {},
+            "order": 4,
+            "inputs": {
+                "width": 1024,
+                "height": 1024,
+                "batch_size": 1
+            }
+        },
+        "sampler": {
+            "id": 5,
+            "type": "KSampler",
+            "pos": [700, 50],
+            "size": {"width": 300, "height": 400},
+            "flags": {},
+            "order": 5,
+            "inputs": {
+                "model": ["8", 0],
+                "positive": ["1", 0],
+                "negative": ["2", 0],
+                "latent_image": ["4", 0],
+                "seed": 0,
+                "steps": 30,
+                "cfg": 7.0,
+                "sampler_name": "euler_ancestral",
+                "scheduler": "karras",
+                "denoise": 1.0
+            }
+        },
+        "vae_decoder": {
+            "id": 6,
+            "type": "VAEDecode",
+            "pos": [1000, 50],
+            "inputs": {
+                "samples": ["5", 0],
+                "vae": ["3", 2]
+            }
+        },
+        "save_image": {
+            "id": 7,
+            "type": "SaveImage",
+            "pos": [1300, 50],
+            "inputs": {
+                "images": ["6", 0],
+                "filename_prefix": "output"
+            }
+        }
+    },
+    "links": [
+        [1, "prompt_positive", 5, "positive"],
+        [2, "prompt_negative", 5, "negative"],
+        [3, "checkpoint", 1, "clip"],
+        [3, "checkpoint", 2, "clip"],
+        [3, "checkpoint", 8, "model"],
+        [3, "checkpoint", 8, "clip"],
+        [4, "empty_latent", 5, "latent_image"],
+        [5, "sampler", 6, "samples"],
+        [6, "vae_decoder", 7, "images"]
+    ],
+    "config": {
+        "default_parameters": {
+            "steps": 30,
+            "cfg_scale": 7.0,
+            "width": 1024,
+            "height": 1024,
+            "lora_strength": 0.7
+        },
+        "optimization": {
+            "batch_size": 1,
+            "fp16": true,
+            "xformers": true
+        },
+        "lora_config": {
+            "default_strength": 0.7,
+            "max_loras": 3,
+            "blend_mode": "add",
+            "cache_enabled": true
+        }
+    }
+} 

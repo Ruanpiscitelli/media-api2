@@ -1,0 +1,52 @@
+# Configuração do ComfyUI
+# Documentação: https://github.com/comfyanonymous/ComfyUI/wiki/Configuration
+
+# Configurações do servidor
+server:
+  host: "0.0.0.0"
+  port: 8188
+  enable_cors: true
+  enable_api: true
+  gpu_only: true
+
+# Diretórios de modelos e outputs
+paths:
+  models:
+    stable-diffusion: "/workspace/models/stable-diffusion"
+    lora: "/workspace/models/lora"
+    vae: "/workspace/models/vae"
+    embeddings: "/workspace/models/embeddings"
+  outputs: "/workspace/outputs"
+
+# Configurações de cache
+cache:
+  ram_cache_size: 6  # GB
+  vram_cache_size: 2 # GB
+
+# Configurações de execução
+execution:
+  max_batch_size: 8
+  max_queue_size: 16
+  timeout: 600  # segundos
+  auto_pick_gpu: true
+  cpu_offload: false
+
+# Configurações de logging
+logging:
+  level: "INFO"
+  file: "/workspace/logs/comfyui.log"
+  max_size: 10  # MB
+  backup_count: 5
+
+# Configurações de métricas
+metrics:
+  enable: true
+  port: 8000
+  path: "/metrics"
+
+# Configurações de segurança
+security:
+  api_key: ""  # Definir via variável de ambiente COMFYUI_API_KEY
+  allowed_ips: []  # Lista de IPs permitidos, vazio = todos
+  max_pixels: 4194304  # 2048x2048
+  max_image_size: 10  # MB 

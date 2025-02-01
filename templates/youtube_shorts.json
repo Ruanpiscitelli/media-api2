@@ -1,0 +1,147 @@
+{
+    "name": "youtube_shorts",
+    "description": "Template para YouTube Shorts com legendas e efeitos",
+    "version": "1.0",
+    "preview": "/media/previews/youtube_shorts.jpg",
+    "duration": 60,
+    
+    "required_params": [
+        "video_url",
+        "captions",
+        "background_music"
+    ],
+    
+    "param_types": {
+        "video_url": "str",
+        "captions": "list",
+        "background_music": "str",
+        "style": "dict",
+        "effects": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 60,
+        "width": 1080,
+        "height": 1920
+    },
+    
+    "scenes": [
+        {
+            "duration": 60.0,
+            "elements": [
+                {
+                    "type": "video",
+                    "placeholder": "video_url",
+                    "position": {"x": 0.5, "y": 0.5},
+                    "style": {
+                        "size": {
+                            "width": 1080,
+                            "height": 1920
+                        },
+                        "zoom": {
+                            "enabled": true,
+                            "scale": 1.1,
+                            "duration": 60.0
+                        }
+                    }
+                },
+                {
+                    "type": "captions",
+                    "placeholder": "captions",
+                    "position": {"x": 0.5, "y": 0.85},
+                    "style": {
+                        "fontSize": 42,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Roboto-Bold",
+                        "textAlign": "center",
+                        "maxWidth": 900,
+                        "background": {
+                            "type": "solid",
+                            "color": "#000000",
+                            "opacity": 0.7,
+                            "padding": 15,
+                            "radius": 10
+                        },
+                        "animation": {
+                            "type": "fade",
+                            "duration": 0.3
+                        }
+                    }
+                },
+                {
+                    "type": "watermark",
+                    "content": "@username",
+                    "position": {"x": 0.95, "y": 0.05},
+                    "style": {
+                        "fontSize": 32,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Roboto-Medium",
+                        "opacity": 0.8
+                    }
+                }
+            ]
+        }
+    ],
+    
+    "audio": {
+        "original": {
+            "volume": 1.0
+        },
+        "music": {
+            "placeholder": "background_music",
+            "volume": 0.3,
+            "fade": {
+                "in": 1.0,
+                "out": 1.0
+            }
+        }
+    },
+    
+    "effects": {
+        "video": {
+            "speed": {
+                "enabled": false,
+                "factor": 1.0
+            },
+            "filters": {
+                "brightness": 1.1,
+                "contrast": 1.2,
+                "saturation": 1.1
+            }
+        },
+        "transitions": {
+            "captions": {
+                "type": "slide",
+                "duration": 0.3
+            }
+        },
+        "engagement": {
+            "like_reminder": {
+                "enabled": true,
+                "position": {"x": 0.5, "y": 0.4},
+                "timing": {
+                    "start": 45.0,
+                    "duration": 3.0
+                },
+                "animation": {
+                    "type": "bounce",
+                    "duration": 1.0
+                }
+            },
+            "subscribe_button": {
+                "enabled": true,
+                "position": {"x": 0.5, "y": 0.5},
+                "timing": {
+                    "start": 50.0,
+                    "duration": 3.0
+                },
+                "animation": {
+                    "type": "scale",
+                    "duration": 0.5
+                }
+            }
+        }
+    }
+} 

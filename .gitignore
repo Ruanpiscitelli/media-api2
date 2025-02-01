@@ -1,0 +1,9 @@
+*.safetensors
+models/lora/*
+models/vae/*
+models/checkpoints/*
+*.ckpt
+*.pth
+__pycache__/
+*.pyc
+.env

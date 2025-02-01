@@ -1,0 +1,274 @@
+{
+    "pt_br_female_1": {
+        "name": "Ana",
+        "gender": "female",
+        "language": "pt-BR",
+        "voice_preset": {
+            "speaker_id": "pt_br_f1",
+            "pitch_shift": 0.0,
+            "formant_shift": 0.0,
+            "voice_seed": 42,
+            "phoneme_map": {
+                "a": "a",
+                "e": "e",
+                "i": "i",
+                "o": "o",
+                "u": "u",
+                "ã": "an",
+                "õ": "on",
+                "é": "eh",
+                "ê": "eh",
+                "ó": "oh",
+                "ô": "oh",
+                "á": "ah",
+                "í": "ih",
+                "ú": "uh",
+                "r": "h"
+            }
+        },
+        "styles": {
+            "pop": {
+                "formant_shift": 0.1,
+                "pitch_shift": 0.2,
+                "vibrato_rate": 5.5,
+                "vibrato_depth": 0.15
+            },
+            "jazz": {
+                "formant_shift": -0.1,
+                "pitch_shift": -0.1,
+                "vibrato_rate": 4.5,
+                "vibrato_depth": 0.2
+            }
+        },
+        "emotions": {
+            "neutral": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.0,
+                "energy_scale": 1.0
+            },
+            "happy": {
+                "pitch_shift": 0.2,
+                "speaking_rate": 1.1,
+                "energy_scale": 1.2
+            },
+            "sad": {
+                "pitch_shift": -0.1,
+                "speaking_rate": 0.9,
+                "energy_scale": 0.8
+            },
+            "angry": {
+                "pitch_shift": 0.1,
+                "speaking_rate": 1.2,
+                "energy_scale": 1.4
+            },
+            "tender": {
+                "pitch_shift": -0.05,
+                "speaking_rate": 0.95,
+                "energy_scale": 0.9
+            }
+        }
+    },
+    "pt_br_male_1": {
+        "name": "João",
+        "gender": "male",
+        "language": "pt-BR",
+        "voice_preset": {
+            "speaker_id": "pt_br_m1",
+            "pitch_shift": -0.2,
+            "formant_shift": -0.1,
+            "voice_seed": 43,
+            "phoneme_map": {
+                "a": "a",
+                "e": "e",
+                "i": "i",
+                "o": "o",
+                "u": "u",
+                "ã": "an",
+                "õ": "on",
+                "é": "eh",
+                "ê": "eh",
+                "ó": "oh",
+                "ô": "oh",
+                "á": "ah",
+                "í": "ih",
+                "ú": "uh",
+                "r": "h"
+            }
+        },
+        "styles": {
+            "rock": {
+                "formant_shift": -0.2,
+                "pitch_shift": -0.1,
+                "vibrato_rate": 5.0,
+                "vibrato_depth": 0.2
+            },
+            "pop": {
+                "formant_shift": -0.1,
+                "pitch_shift": 0.0,
+                "vibrato_rate": 4.5,
+                "vibrato_depth": 0.15
+            }
+        },
+        "emotions": {
+            "neutral": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.0,
+                "energy_scale": 1.0
+            },
+            "happy": {
+                "pitch_shift": 0.1,
+                "speaking_rate": 1.1,
+                "energy_scale": 1.2
+            },
+            "sad": {
+                "pitch_shift": -0.2,
+                "speaking_rate": 0.9,
+                "energy_scale": 0.8
+            },
+            "angry": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.2,
+                "energy_scale": 1.4
+            },
+            "tender": {
+                "pitch_shift": -0.1,
+                "speaking_rate": 0.95,
+                "energy_scale": 0.9
+            }
+        }
+    },
+    "en_us_female_1": {
+        "name": "Sarah",
+        "gender": "female",
+        "language": "en-US",
+        "voice_preset": {
+            "speaker_id": "en_us_f1",
+            "pitch_shift": 0.0,
+            "formant_shift": 0.0,
+            "voice_seed": 44,
+            "phoneme_map": {
+                "a": "a",
+                "e": "e",
+                "i": "i",
+                "o": "o",
+                "u": "u",
+                "æ": "ae",
+                "ə": "ah",
+                "ɪ": "ih",
+                "ʊ": "uh",
+                "ɛ": "eh",
+                "ɔ": "oh",
+                "ʌ": "uh",
+                "r": "r"
+            }
+        },
+        "styles": {
+            "pop": {
+                "formant_shift": 0.1,
+                "pitch_shift": 0.2,
+                "vibrato_rate": 5.5,
+                "vibrato_depth": 0.15
+            },
+            "jazz": {
+                "formant_shift": -0.1,
+                "pitch_shift": -0.1,
+                "vibrato_rate": 4.5,
+                "vibrato_depth": 0.2
+            }
+        },
+        "emotions": {
+            "neutral": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.0,
+                "energy_scale": 1.0
+            },
+            "happy": {
+                "pitch_shift": 0.2,
+                "speaking_rate": 1.1,
+                "energy_scale": 1.2
+            },
+            "sad": {
+                "pitch_shift": -0.1,
+                "speaking_rate": 0.9,
+                "energy_scale": 0.8
+            },
+            "angry": {
+                "pitch_shift": 0.1,
+                "speaking_rate": 1.2,
+                "energy_scale": 1.4
+            },
+            "tender": {
+                "pitch_shift": -0.05,
+                "speaking_rate": 0.95,
+                "energy_scale": 0.9
+            }
+        }
+    },
+    "en_us_male_1": {
+        "name": "Michael",
+        "gender": "male",
+        "language": "en-US",
+        "voice_preset": {
+            "speaker_id": "en_us_m1",
+            "pitch_shift": -0.2,
+            "formant_shift": -0.1,
+            "voice_seed": 45,
+            "phoneme_map": {
+                "a": "a",
+                "e": "e",
+                "i": "i",
+                "o": "o",
+                "u": "u",
+                "æ": "ae",
+                "ə": "ah",
+                "ɪ": "ih",
+                "ʊ": "uh",
+                "ɛ": "eh",
+                "ɔ": "oh",
+                "ʌ": "uh",
+                "r": "r"
+            }
+        },
+        "styles": {
+            "rock": {
+                "formant_shift": -0.2,
+                "pitch_shift": -0.1,
+                "vibrato_rate": 5.0,
+                "vibrato_depth": 0.2
+            },
+            "pop": {
+                "formant_shift": -0.1,
+                "pitch_shift": 0.0,
+                "vibrato_rate": 4.5,
+                "vibrato_depth": 0.15
+            }
+        },
+        "emotions": {
+            "neutral": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.0,
+                "energy_scale": 1.0
+            },
+            "happy": {
+                "pitch_shift": 0.1,
+                "speaking_rate": 1.1,
+                "energy_scale": 1.2
+            },
+            "sad": {
+                "pitch_shift": -0.2,
+                "speaking_rate": 0.9,
+                "energy_scale": 0.8
+            },
+            "angry": {
+                "pitch_shift": 0.0,
+                "speaking_rate": 1.2,
+                "energy_scale": 1.4
+            },
+            "tender": {
+                "pitch_shift": -0.1,
+                "speaking_rate": 0.95,
+                "energy_scale": 0.9
+            }
+        }
+    }
+} 

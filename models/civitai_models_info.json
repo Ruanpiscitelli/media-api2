@@ -1,0 +1,12 @@
+{
+    "colossus_xl": {
+        "name": "Colossus Project XL",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/checkpoints/colossus_xl.safetensors",
+        "type": "checkpoint"
+    },
+    "juggernaut_xl": {
+        "name": "Juggernaut Cinematic XL",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/lora/juggernaut_xl.safetensors",
+        "type": "lora"
+    }
+}

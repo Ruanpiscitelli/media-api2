@@ -1,0 +1,107 @@
+{
+    "name": "overlay",
+    "description": "Template para vídeo com overlay e efeitos",
+    "version": "1.0",
+    "preview": "/media/previews/overlay.jpg",
+    "duration": 30,
+    
+    "required_params": [
+        "base_video",
+        "overlay_video",
+        "title"
+    ],
+    
+    "param_types": {
+        "base_video": "str",
+        "overlay_video": "str",
+        "title": "str",
+        "position": "dict",
+        "timing": "dict",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1920,
+        "height": 1080
+    },
+    
+    "scenes": [
+        {
+            "duration": 3.0,
+            "elements": [
+                {
+                    "type": "text",
+                    "placeholder": "title",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "fontSize": 64,
+                        "color": "#FFFFFF",
+                        "fontFamily": "OpenSans-Bold"
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 1.0
+            }
+        },
+        {
+            "duration": 27.0,
+            "elements": [
+                {
+                    "type": "video",
+                    "placeholder": "base_video",
+                    "position": {
+                        "x": 0,
+                        "y": 0
+                    },
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        }
+                    }
+                },
+                {
+                    "type": "video",
+                    "placeholder": "overlay_video",
+                    "position": {
+                        "x": 0.7,
+                        "y": 0.7
+                    },
+                    "style": {
+                        "size": {
+                            "width": 480,
+                            "height": 270
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    
+    "effects": {
+        "overlay": {
+            "type": "picture-in-picture",
+            "border": {
+                "color": "#FFFFFF",
+                "width": 2
+            },
+            "shadow": {
+                "color": "#000000",
+                "opacity": 0.5,
+                "blur": 10,
+                "offset": {
+                    "x": 5,
+                    "y": 5
+                }
+            }
+        }
+    }
+} 

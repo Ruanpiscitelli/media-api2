@@ -1,0 +1,186 @@
+{
+    "name": "SDXL Base",
+    "description": "Workflow básico para geração de imagens com SDXL",
+    "version": "1.0.0",
+    "nodes": {
+        "1": {
+            "id": 1,
+            "type": "SDXLLoader",
+            "pos": [0, 0],
+            "inputs": {
+                "model_path": "models/sdxl/base"
+            }
+        },
+        "2": {
+            "id": 2,
+            "type": "CLIPTextEncode",
+            "pos": [200, 0],
+            "inputs": {
+                "text": "",
+                "clip": ["1", 0]
+            }
+        },
+        "3": {
+            "id": 3,
+            "type": "KSampler",
+            "pos": [0, 200],
+            "inputs": {
+                "cfg": 7.5,
+                "denoise": 1,
+                "latent_image": ["5", 0],
+                "model": ["4", 0],
+                "negative": ["7", 0],
+                "positive": ["6", 0],
+                "sampler_name": "dpmpp_2m",
+                "scheduler": "karras",
+                "seed": 8566257,
+                "steps": 25
+            }
+        },
+        "4": {
+            "id": 4,
+            "type": "CheckpointLoaderSimple",
+            "pos": [200, 200],
+            "inputs": {
+                "ckpt_name": "sd_xl_base_1.0.safetensors"
+            }
+        },
+        "5": {
+            "id": 5,
+            "type": "EmptyLatentImage",
+            "pos": [0, 400],
+            "inputs": {
+                "batch_size": 1,
+                "height": 1024,
+                "width": 1024
+            }
+        },
+        "6": {
+            "id": 6,
+            "type": "CLIPTextEncode",
+            "pos": [200, 400],
+            "inputs": {
+                "clip": ["4", 1],
+                "text": "beautiful landscape, mountains, lake, sunset, realistic, detailed"
+            }
+        },
+        "7": {
+            "id": 7,
+            "type": "CLIPTextEncode",
+            "pos": [200, 500],
+            "inputs": {
+                "clip": ["4", 1],
+                "text": "text, watermark, signature, blurry, low quality"
+            }
+        },
+        "8": {
+            "id": 8,
+            "type": "VAEDecode",
+            "pos": [600, 100],
+            "inputs": {
+                "samples": ["3", 0],
+                "vae": ["4", 2]
+            }
+        },
+        "9": {
+            "id": 9,
+            "type": "SaveImage",
+            "pos": [800, 100],
+            "inputs": {
+                "filename_prefix": "sdxl_",
+                "images": ["8", 0]
+            }
+        }
+    },
+    "connections": [
+        {
+            "from": {
+                "node": 1,
+                "output": 0
+            },
+            "to": {
+                "node": 2,
+                "input": "clip"
+            }
+        },
+        {
+            "from": {
+                "node": 1,
+                "output": 0
+            },
+            "to": {
+                "node": 4,
+                "input": "model"
+            }
+        },
+        {
+            "from": {
+                "node": 2,
+                "output": 0
+            },
+            "to": {
+                "node": 4,
+                "input": "positive"
+            }
+        },
+        {
+            "from": {
+                "node": 3,
+                "output": 0
+            },
+            "to": {
+                "node": 4,
+                "input": "latent_image"
+            }
+        },
+        {
+            "from": {
+                "node": 4,
+                "output": 0
+            },
+            "to": {
+                "node": 5,
+                "input": "model"
+            }
+        },
+        {
+            "from": {
+                "node": 5,
+                "output": 0
+            },
+            "to": {
+                "node": 8,
+                "input": "samples"
+            }
+        },
+        {
+            "from": {
+                "node": 1,
+                "output": 2
+            },
+            "to": {
+                "node": 8,
+                "input": "vae"
+            }
+        },
+        {
+            "from": {
+                "node": 8,
+                "output": 0
+            },
+            "to": {
+                "node": 9,
+                "input": "images"
+            }
+        }
+    ],
+    "metadata": {
+        "author": "Media API",
+        "license": "MIT",
+        "tags": ["sdxl", "base", "image"],
+        "requirements": {
+            "gpu_memory": "12GB",
+            "cuda_version": ">=12.1"
+        }
+    }
+} 

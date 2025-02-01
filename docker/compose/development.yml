@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_SERVER=db
+      - REDIS_URL=redis://redis:6379
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ../../src:/app/src
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../../src
+          target: /app/src
+          ignore:
+            - "**/__pycache__"
+            - "**/*.pyc"
+    depends_on:
+      - redis
+      - db
+
+  celery_high:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: development
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q high --loglevel=info --concurrency=2
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=development
+    env_file:
+      - ../../config/env/development.env
+    volumes:
+      - ../..:/app
+      - ../../models:/app/models
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  celery_default:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: development
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q default --loglevel=info --concurrency=2
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=development
+    env_file:
+      - ../../config/env/development.env
+    volumes:
+      - ../..:/app
+      - ../../models:/app/models
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  celery_low:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: development
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q low --loglevel=info --concurrency=1
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=development
+    env_file:
+      - ../../config/env/development.env
+    volumes:
+      - ../..:/app
+      - ../../models:/app/models
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  flower:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: development
+    command: celery -A src.core.celery_app flower --port=5555
+    environment:
+      - ENVIRONMENT=development
+    env_file:
+      - ../../config/env/development.env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - rabbitmq
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=mediaapi
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    secrets:
+      - db-password
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ../../config/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ../../config/grafana:/etc/grafana
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  nvidia-dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.1.7-3.1.5-ubuntu20.04
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    ports:
+      - "9400:9400"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+secrets:
+  db-password:
+    file: ../secrets/db-password.txt
+
+networks:
+  backend:
+  monitoring: 

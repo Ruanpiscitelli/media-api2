@@ -1,0 +1,158 @@
+{
+    "name": "instagram_story",
+    "description": "Template para Instagram Stories com elementos interativos",
+    "version": "1.0",
+    "preview": "/media/previews/instagram_story.jpg",
+    "duration": 15,
+    
+    "required_params": [
+        "background_media",
+        "title",
+        "cta_text",
+        "brand_logo"
+    ],
+    
+    "param_types": {
+        "background_media": "str",
+        "title": "str",
+        "cta_text": "str",
+        "brand_logo": "str",
+        "brand_colors": "dict",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1080,
+        "height": 1920
+    },
+    
+    "scenes": [
+        {
+            "duration": 15.0,
+            "elements": [
+                {
+                    "type": "video",
+                    "placeholder": "background_media",
+                    "position": {"x": 0.5, "y": 0.5},
+                    "style": {
+                        "size": {
+                            "width": 1080,
+                            "height": 1920
+                        },
+                        "filter": {
+                            "brightness": 0.9,
+                            "contrast": 1.1
+                        }
+                    }
+                },
+                {
+                    "type": "image",
+                    "placeholder": "brand_logo",
+                    "position": {"x": 0.5, "y": 0.1},
+                    "style": {
+                        "size": {
+                            "width": 150,
+                            "height": 150
+                        },
+                        "animation": {
+                            "type": "bounce",
+                            "duration": 1.0,
+                            "delay": 0.5
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "placeholder": "title",
+                    "position": {"x": 0.5, "y": 0.3},
+                    "style": {
+                        "fontSize": 48,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Poppins-Bold",
+                        "textAlign": "center",
+                        "maxWidth": 800,
+                        "shadow": {
+                            "color": "#000000",
+                            "blur": 10,
+                            "offset": {"x": 0, "y": 2}
+                        },
+                        "animation": {
+                            "type": "typewriter",
+                            "duration": 1.5,
+                            "delay": 0.8
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "placeholder": "cta_text",
+                    "position": {"x": 0.5, "y": 0.85},
+                    "style": {
+                        "fontSize": 36,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Poppins-SemiBold",
+                        "background": {
+                            "type": "gradient",
+                            "colors": ["#FF6B6B", "#4ECDC4"],
+                            "opacity": 0.9,
+                            "radius": 25
+                        },
+                        "padding": {
+                            "x": 40,
+                            "y": 15
+                        },
+                        "animation": {
+                            "type": "pulse",
+                            "duration": 1.0,
+                            "delay": 2.0,
+                            "repeat": true
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    
+    "audio": {
+        "music": {
+            "volume": 0.2,
+            "fade": {
+                "in": 0.3,
+                "out": 0.3
+            }
+        }
+    },
+    
+    "effects": {
+        "overlay": {
+            "type": "gradient",
+            "colors": ["#00000000", "#00000080"],
+            "direction": "bottom",
+            "height": "50%"
+        },
+        "stickers": {
+            "swipe_up": {
+                "enabled": true,
+                "position": {"x": 0.5, "y": 0.95},
+                "animation": {
+                    "type": "float",
+                    "duration": 1.0,
+                    "repeat": true
+                }
+            }
+        },
+        "engagement": {
+            "poll": {
+                "enabled": false,
+                "position": {"x": 0.5, "y": 0.7}
+            },
+            "slider": {
+                "enabled": false,
+                "position": {"x": 0.5, "y": 0.8}
+            }
+        }
+    }
+} 

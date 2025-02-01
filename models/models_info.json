@@ -1,0 +1,22 @@
+{
+    "sdxl_base": {
+        "name": "SDXL 1.0 Base",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/checkpoints/sd_xl_base_1.0.safetensors",
+        "sha256": null
+    },
+    "sdxl_vae": {
+        "name": "SDXL VAE",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/vae/sdxl_vae.safetensors",
+        "sha256": null
+    },
+    "fish_speech": {
+        "name": "Fish Speech 2.0",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/fish_speech/fish_speech_v2.safetensors",
+        "sha256": null
+    },
+    "fast_hunyuan": {
+        "name": "FastHunyuan",
+        "path": "/Users/ruanpiscitelli/Documents/github/media-api/models/fasthunyuan/FastHunyuan-2.safetensors",
+        "sha256": null
+    }
+}

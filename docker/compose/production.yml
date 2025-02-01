@@ -1,0 +1,277 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: production
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - APPLY_MIGRATIONS=true
+      - ENVIRONMENT=production
+    env_file:
+      - ../../config/env/production.env
+    volumes:
+      - ../../models:/app/models
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - rabbitmq
+      - prometheus
+      - grafana
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  celery_high:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: production
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q high --loglevel=info --concurrency=2
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=production
+    env_file:
+      - ../../config/env/production.env
+    volumes:
+      - ../../models:/app/models
+      - media_data:/app/media
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  celery_default:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: production
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q default --loglevel=info --concurrency=2
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=production
+    env_file:
+      - ../../config/env/production.env
+    volumes:
+      - ../../models:/app/models
+      - media_data:/app/media
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  celery_low:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: production
+    runtime: nvidia
+    command: celery -A src.core.celery_app worker -Q low --loglevel=info --concurrency=1
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ENVIRONMENT=production
+    env_file:
+      - ../../config/env/production.env
+    volumes:
+      - ../../models:/app/models
+      - media_data:/app/media
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  flower:
+    build:
+      context: ../..
+      dockerfile: docker/api/Dockerfile
+      target: production
+    command: celery -A src.core.celery_app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    environment:
+      - ENVIRONMENT=production
+    env_file:
+      - ../../config/env/production.env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - rabbitmq
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  redis:
+    image: redis:7.0-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../config/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../config/grafana:/etc/grafana
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../../config/nginx:/etc/nginx
+      - media_data:/app/media:ro
+      - ../../static:/app/static:ro
+      - ssl_data:/etc/nginx/ssl
+    depends_on:
+      - api
+      - prometheus
+      - grafana
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  nvidia-dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.1.7-3.1.5-ubuntu20.04
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    ports:
+      - "9400:9400"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  media_data:
+  ssl_data: 

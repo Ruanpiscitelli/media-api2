@@ -1,0 +1,22 @@
+# Importa requisitos base
+-r base.txt
+
+# Produção
+gunicorn==21.2.0
+uvicorn[standard]==0.23.2
+supervisor==4.2.5
+
+# Monitoramento em produção
+sentry-sdk==1.31.0
+newrelic==9.1.0
+elastic-apm==6.18.0
+
+# Cache e Performance
+redis[hiredis]==5.0.1
+pylibmc==1.6.3
+ujson==5.8.0
+
+# Segurança
+certifi==2023.7.22
+pyOpenSSL==23.2.0
+cryptography==41.0.3 

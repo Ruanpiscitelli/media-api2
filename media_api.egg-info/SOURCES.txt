@@ -1,0 +1,8 @@
+LICENSE.md
+README.md
+setup.py
+media_api.egg-info/PKG-INFO
+media_api.egg-info/SOURCES.txt
+media_api.egg-info/dependency_links.txt
+media_api.egg-info/requires.txt
+media_api.egg-info/top_level.txt

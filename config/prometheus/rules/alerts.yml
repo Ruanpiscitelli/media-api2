@@ -1,0 +1,145 @@
+groups:
+  - name: gpu_alerts
+    rules:
+      - alert: GPUHighTemperature
+        expr: gpu_temperature > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.device_id }} temperatura alta"
+          description: "GPU {{ $labels.device_id }} está com temperatura de {{ $value }}°C por 5 minutos"
+
+      - alert: GPUCriticalTemperature
+        expr: gpu_temperature > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU {{ $labels.device_id }} temperatura crítica"
+          description: "GPU {{ $labels.device_id }} está com temperatura de {{ $value }}°C"
+
+      - alert: GPUHighMemoryUsage
+        expr: gpu_vram_usage_mb / gpu_vram_total_mb * 100 > 95
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.device_id }} memória alta"
+          description: "GPU {{ $labels.device_id }} está usando {{ $value }}% da memória"
+
+      - alert: GPUError
+        expr: increase(gpu_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Erros detectados na GPU {{ $labels.device_id }}"
+          description: "{{ $value }} erros detectados nos últimos 5 minutos"
+
+  - name: api_alerts
+    rules:
+      - alert: APIHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa de erros alta na API"
+          description: "{{ $value }}% das requisições resultando em erro"
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência alta na API"
+          description: "95% das requisições demorando mais de 2 segundos"
+
+      - alert: APIDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API indisponível"
+          description: "A API está inacessível"
+
+  - name: service_alerts
+    rules:
+      - alert: ComfyUIDown
+        expr: comfyui_ready == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ComfyUI indisponível"
+          description: "O serviço ComfyUI não está respondendo"
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis indisponível"
+          description: "O serviço Redis não está respondendo"
+
+      - alert: DatabaseConnectionIssues
+        expr: rate(database_connection_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Problemas de conexão com banco de dados"
+          description: "{{ $value }} erros de conexão nos últimos 5 minutos"
+
+  - name: resource_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso alto de CPU"
+          description: "{{ $value }}% de uso de CPU"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso alto de memória"
+          description: "{{ $value }}% de uso de memória"
+
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Espaço em disco baixo"
+          description: "Apenas {{ $value }}% de espaço livre em disco"
+
+  - name: queue_alerts
+    rules:
+      - alert: HighQueueLatency
+        expr: rate(task_queue_latency_seconds_sum[5m]) / rate(task_queue_latency_seconds_count[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta latência na fila"
+          description: "Tempo médio de espera na fila > 30s"
+
+      - alert: QueueBacklog
+        expr: sum(task_queue_size) > 1000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Acúmulo de tarefas na fila"
+          description: "{{ $value }} tarefas aguardando processamento" 

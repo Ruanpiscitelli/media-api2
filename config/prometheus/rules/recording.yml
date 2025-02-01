@@ -1,0 +1,67 @@
+groups:
+  - name: gpu_metrics
+    rules:
+      - record: gpu:memory_usage:ratio
+        expr: gpu_memory_usage / gpu_memory_total
+      
+      - record: gpu:utilization:avg_5m
+        expr: avg_over_time(gpu_utilization[5m])
+      
+      - record: gpu:temperature:max_1h
+        expr: max_over_time(gpu_temperature[1h])
+      
+      - record: gpu:power:avg_15m
+        expr: avg_over_time(gpu_power_usage[15m])
+
+  - name: api_metrics
+    rules:
+      - record: api:request_rate:5m
+        expr: sum(rate(http_requests_total[5m]))
+      
+      - record: api:error_rate:5m
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+      
+      - record: api:latency:p95:5m
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+      
+      - record: api:requests_by_endpoint:1h
+        expr: sum(increase(http_requests_total[1h])) by (endpoint)
+
+  - name: cache_metrics
+    rules:
+      - record: cache:hit_rate:5m
+        expr: sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))
+      
+      - record: cache:latency:avg:5m
+        expr: rate(cache_operation_latency_seconds_sum[5m]) / rate(cache_operation_latency_seconds_count[5m])
+      
+      - record: cache:operations:rate:5m
+        expr: sum(rate(cache_operation_latency_seconds_count[5m])) by (operation)
+
+  - name: resource_metrics
+    rules:
+      - record: resource:cpu:usage:5m
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+      
+      - record: resource:memory:usage:5m
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100
+      
+      - record: resource:disk:usage:5m
+        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"})
+      
+      - record: resource:network:throughput:5m
+        expr: sum(rate(node_network_transmit_bytes_total[5m]) + rate(node_network_receive_bytes_total[5m]))
+
+  - name: model_metrics
+    rules:
+      - record: model:inference_time:avg:5m
+        expr: rate(model_inference_duration_seconds_sum[5m]) / rate(model_inference_duration_seconds_count[5m])
+      
+      - record: model:batch_size:avg:5m
+        expr: rate(model_batch_size_sum[5m]) / rate(model_batch_size_count[5m])
+      
+      - record: model:queue_time:avg:5m
+        expr: rate(model_queue_duration_seconds_sum[5m]) / rate(model_queue_duration_seconds_count[5m])
+      
+      - record: model:success_rate:5m
+        expr: sum(rate(model_inference_total{status="success"}[5m])) / sum(rate(model_inference_total[5m])) 

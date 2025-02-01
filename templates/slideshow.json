@@ -1,0 +1,130 @@
+{
+    "name": "slideshow",
+    "description": "Template para slideshow com texto e música",
+    "version": "1.0",
+    "preview": "/media/previews/slideshow.jpg",
+    "duration": 30,
+    
+    "required_params": [
+        "title",
+        "images",
+        "music_url"
+    ],
+    
+    "param_types": {
+        "title": "str",
+        "images": "list",
+        "music_url": "str",
+        "duration": "float",
+        "style": "dict"
+    },
+    
+    "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1920,
+        "height": 1080
+    },
+    
+    "scenes": [
+        {
+            "duration": 5.0,
+            "elements": [
+                {
+                    "type": "text",
+                    "placeholder": "title",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "fontSize": 64,
+                        "color": "#FFFFFF",
+                        "fontFamily": "OpenSans-Bold"
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 1.0
+            }
+        },
+        {
+            "duration": 5.0,
+            "elements": [
+                {
+                    "type": "image",
+                    "placeholder": "images[0]",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        }
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 0.5
+            }
+        },
+        {
+            "duration": 5.0,
+            "elements": [
+                {
+                    "type": "image",
+                    "placeholder": "images[1]",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        }
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 0.5
+            }
+        },
+        {
+            "duration": 5.0,
+            "elements": [
+                {
+                    "type": "image",
+                    "placeholder": "images[2]",
+                    "position": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "style": {
+                        "size": {
+                            "width": 1920,
+                            "height": 1080
+                        }
+                    }
+                }
+            ],
+            "transition": {
+                "type": "fade",
+                "duration": 0.5
+            }
+        }
+    ],
+    
+    "audio": {
+        "music": {
+            "placeholder": "music_url",
+            "volume": 0.3
+        }
+    }
+} 

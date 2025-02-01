@@ -1,0 +1,3 @@
+COMFY_PORT = 8188
+COMFY_TIMEOUT = 300  # 5 minutos
+COMFY_WORKFLOW_DIR = "workflows/" 

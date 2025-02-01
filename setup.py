@@ -1,0 +1,36 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="media-api",
+    version="0.1.0",
+    packages=find_packages(),
+    install_requires=[
+        "fastapi>=0.68.0",
+        "uvicorn>=0.15.0",
+        "python-multipart>=0.0.5",
+        "pydantic>=2.0.0",
+        "python-jose[cryptography]>=3.3.0",
+        "passlib[bcrypt]>=1.7.4",
+        "Pillow>=9.0.0",
+        "opencv-python-headless>=4.8.0",
+        "numpy>=1.24.0",
+        "freetype-py>=2.3.0",
+        "PyICU>=2.12.0",
+        "transformers>=4.35.0",
+        "moviepy>=1.0.3",
+        "ffmpeg-python>=0.2.0",
+        "pydub>=0.25.1",
+        "soundfile>=0.12.1",
+        "torchaudio>=2.0.0",
+        "torch>=2.0.0",
+        "torchvision>=0.15.0",
+        "redis>=4.5.0",
+        "aiofiles>=23.0.0",
+        "prometheus-client>=0.17.0",
+        "opentelemetry-api>=1.20.0",
+        "opentelemetry-sdk>=1.20.0",
+        "opentelemetry-instrumentation-fastapi>=0.41b0",
+        "python-magic>=0.4.27",
+        "tqdm>=4.65.0"
+    ]
+) 

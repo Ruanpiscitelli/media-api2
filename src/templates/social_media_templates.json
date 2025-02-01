@@ -1,0 +1,484 @@
+{
+  "templates": [
+    {
+      "name": "instagram_reels_promo",
+      "description": "Template para promoções no Instagram Reels",
+      "version": "1.0",
+      "preview": "/media/previews/instagram_reels_promo.jpg",
+      "duration": 30,
+      "required_params": [
+        "product_images",
+        "product_name",
+        "price",
+        "cta_text",
+        "background_music"
+      ],
+      "param_types": {
+        "product_images": "list",
+        "product_name": "str",
+        "price": "str",
+        "cta_text": "str",
+        "background_music": "str",
+        "style": "dict"
+      },
+      "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 60,
+        "width": 1080,
+        "height": 1920
+      },
+      "scenes": [
+        {
+          "duration": 3.0,
+          "elements": [
+            {
+              "type": "text",
+              "placeholder": "product_name",
+              "position": {
+                "x": 0.5,
+                "y": 0.3
+              },
+              "style": {
+                "fontSize": 64,
+                "color": "#FFFFFF",
+                "fontFamily": "Poppins-Bold",
+                "textAlign": "center",
+                "animation": {
+                  "type": "slide",
+                  "from": "top",
+                  "duration": 0.5
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 24.0,
+          "elements": [
+            {
+              "type": "carousel",
+              "placeholder": "product_images",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "size": {
+                  "width": 900,
+                  "height": 900
+                },
+                "transition": {
+                  "type": "slide",
+                  "duration": 0.5
+                },
+                "border": {
+                  "color": "#FFFFFF",
+                  "width": 4,
+                  "radius": 20
+                }
+              }
+            },
+            {
+              "type": "text",
+              "placeholder": "price",
+              "position": {
+                "x": 0.5,
+                "y": 0.8
+              },
+              "style": {
+                "fontSize": 72,
+                "color": "#FF4D4D",
+                "fontFamily": "Poppins-Black",
+                "textAlign": "center",
+                "animation": {
+                  "type": "pulse",
+                  "duration": 1.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 3.0,
+          "elements": [
+            {
+              "type": "text",
+              "placeholder": "cta_text",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "fontSize": 48,
+                "color": "#FFFFFF",
+                "fontFamily": "Poppins-Bold",
+                "textAlign": "center",
+                "background": {
+                  "type": "solid",
+                  "color": "#FF4D4D",
+                  "padding": 20,
+                  "radius": 10
+                },
+                "animation": {
+                  "type": "scale",
+                  "duration": 0.5
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "audio": {
+        "music": {
+          "placeholder": "background_music",
+          "volume": 0.4,
+          "fade": {
+            "in": 0.5,
+            "out": 0.5
+          }
+        }
+      },
+      "effects": {
+        "transitions": {
+          "type": "fade",
+          "duration": 0.3
+        }
+      }
+    },
+    {
+      "name": "linkedin_product_launch",
+      "description": "Template para lançamento de produtos no LinkedIn",
+      "version": "1.0",
+      "preview": "/media/previews/linkedin_product_launch.jpg",
+      "duration": 45,
+      "required_params": [
+        "product_name",
+        "key_features",
+        "company_logo",
+        "background_video",
+        "background_music"
+      ],
+      "param_types": {
+        "product_name": "str",
+        "key_features": "list",
+        "company_logo": "str",
+        "background_video": "str",
+        "background_music": "str",
+        "style": "dict"
+      },
+      "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1920,
+        "height": 1080
+      },
+      "scenes": [
+        {
+          "duration": 5.0,
+          "elements": [
+            {
+              "type": "video",
+              "placeholder": "background_video",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "size": {
+                  "width": 1920,
+                  "height": 1080
+                },
+                "opacity": 0.8
+              }
+            },
+            {
+              "type": "image",
+              "placeholder": "company_logo",
+              "position": {
+                "x": 0.5,
+                "y": 0.3
+              },
+              "style": {
+                "size": {
+                  "width": 200,
+                  "height": 200
+                },
+                "animation": {
+                  "type": "fade",
+                  "duration": 1.0
+                }
+              }
+            },
+            {
+              "type": "text",
+              "content": "Apresenta",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "fontSize": 36,
+                "color": "#FFFFFF",
+                "fontFamily": "Montserrat-Regular",
+                "animation": {
+                  "type": "fade",
+                  "duration": 1.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 5.0,
+          "elements": [
+            {
+              "type": "text",
+              "placeholder": "product_name",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "fontSize": 72,
+                "color": "#FFFFFF",
+                "fontFamily": "Montserrat-Bold",
+                "textAlign": "center",
+                "animation": {
+                  "type": "scale",
+                  "duration": 1.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 30.0,
+          "elements": [
+            {
+              "type": "feature_list",
+              "placeholder": "key_features",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "layout": "vertical",
+                "spacing": 40,
+                "feature": {
+                  "fontSize": 36,
+                  "color": "#FFFFFF",
+                  "fontFamily": "Montserrat-SemiBold",
+                  "icon": {
+                    "type": "checkmark",
+                    "color": "#4CAF50",
+                    "size": 48
+                  },
+                  "animation": {
+                    "type": "slide",
+                    "from": "left",
+                    "duration": 0.5
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 5.0,
+          "elements": [
+            {
+              "type": "text",
+              "content": "Disponível Agora",
+              "position": {
+                "x": 0.5,
+                "y": 0.4
+              },
+              "style": {
+                "fontSize": 64,
+                "color": "#4CAF50",
+                "fontFamily": "Montserrat-Black",
+                "animation": {
+                  "type": "scale",
+                  "duration": 0.5
+                }
+              }
+            },
+            {
+              "type": "text",
+              "content": "Saiba mais em nosso site",
+              "position": {
+                "x": 0.5,
+                "y": 0.6
+              },
+              "style": {
+                "fontSize": 36,
+                "color": "#FFFFFF",
+                "fontFamily": "Montserrat-Regular",
+                "animation": {
+                  "type": "fade",
+                  "duration": 0.5
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "audio": {
+        "music": {
+          "placeholder": "background_music",
+          "volume": 0.3,
+          "fade": {
+            "in": 1.0,
+            "out": 1.0
+          }
+        }
+      },
+      "effects": {
+        "video": {
+          "filters": {
+            "brightness": 0.8,
+            "contrast": 1.2
+          }
+        },
+        "transitions": {
+          "type": "fade",
+          "duration": 0.5
+        }
+      }
+    },
+    {
+      "name": "twitter_product_teaser",
+      "description": "Template para teaser de produtos no Twitter",
+      "version": "1.0",
+      "preview": "/media/previews/twitter_product_teaser.jpg",
+      "duration": 15,
+      "required_params": [
+        "product_image",
+        "teaser_text",
+        "launch_date",
+        "background_music"
+      ],
+      "param_types": {
+        "product_image": "str",
+        "teaser_text": "str",
+        "launch_date": "str",
+        "background_music": "str",
+        "style": "dict"
+      },
+      "settings": {
+        "format": "mp4",
+        "quality": "high",
+        "fps": 30,
+        "width": 1280,
+        "height": 720
+      },
+      "scenes": [
+        {
+          "duration": 5.0,
+          "elements": [
+            {
+              "type": "text",
+              "placeholder": "teaser_text",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "fontSize": 48,
+                "color": "#FFFFFF",
+                "fontFamily": "Inter-Bold",
+                "textAlign": "center",
+                "maxWidth": 1000,
+                "animation": {
+                  "type": "typewriter",
+                  "duration": 3.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 7.0,
+          "elements": [
+            {
+              "type": "image",
+              "placeholder": "product_image",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "style": {
+                "size": {
+                  "width": 800,
+                  "height": 600
+                },
+                "animation": {
+                  "type": "reveal",
+                  "direction": "left",
+                  "duration": 1.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "duration": 3.0,
+          "elements": [
+            {
+              "type": "text",
+              "content": "Em breve",
+              "position": {
+                "x": 0.5,
+                "y": 0.4
+              },
+              "style": {
+                "fontSize": 36,
+                "color": "#1DA1F2",
+                "fontFamily": "Inter-Medium",
+                "animation": {
+                  "type": "fade",
+                  "duration": 0.5
+                }
+              }
+            },
+            {
+              "type": "text",
+              "placeholder": "launch_date",
+              "position": {
+                "x": 0.5,
+                "y": 0.6
+              },
+              "style": {
+                "fontSize": 48,
+                "color": "#FFFFFF",
+                "fontFamily": "Inter-Bold",
+                "animation": {
+                  "type": "scale",
+                  "duration": 0.5
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "audio": {
+        "music": {
+          "placeholder": "background_music",
+          "volume": 0.3,
+          "fade": {
+            "in": 0.5,
+            "out": 0.5
+          }
+        }
+      },
+      "effects": {
+        "transitions": {
+          "type": "slide",
+          "duration": 0.3
+        }
+      }
+    }
+  ]
+} 

@@ -1,0 +1,108 @@
+{
+    "model": {
+        "name": "fish_speech_base",
+        "version": "1.0.0",
+        "checkpoint_url": "https://huggingface.co/fishaudio/fish-speech/resolve/main/fish_speech_base.pth",
+        "config": {
+            "sample_rate": 24000,
+            "hop_length": 256,
+            "hidden_channels": 256,
+            "filter_channels": 768,
+            "n_heads": 2,
+            "n_layers": 6,
+            "kernel_size": 3,
+            "p_dropout": 0.1,
+            "resblock": true,
+            "mean_only": false,
+            "emotion_embedding": true
+        }
+    },
+    "audio": {
+        "mel_config": {
+            "n_fft": 2048,
+            "hop_length": 256,
+            "win_length": 1024,
+            "sampling_rate": 24000,
+            "n_mel_channels": 80,
+            "mel_fmin": 0.0,
+            "mel_fmax": null
+        }
+    },
+    "training": {
+        "high_quality": {
+            "batch_size": 8,
+            "learning_rate": 0.0001,
+            "epochs": 50,
+            "warmup_steps": 1000,
+            "checkpoint_interval": 1000,
+            "eval_interval": 100
+        },
+        "fast": {
+            "batch_size": 16,
+            "learning_rate": 0.0002,
+            "epochs": 25,
+            "warmup_steps": 500,
+            "checkpoint_interval": 500,
+            "eval_interval": 50
+        }
+    },
+    "cloning": {
+        "min_samples": 3,
+        "recommended_samples": 10,
+        "max_samples": 50,
+        "min_audio_length": 3,
+        "max_audio_length": 15,
+        "supported_formats": ["wav", "mp3", "flac"],
+        "sample_requirements": {
+            "min_sample_rate": 16000,
+            "preferred_sample_rate": 24000,
+            "min_quality": "speech-quality"
+        }
+    },
+    "inference": {
+        "batch_size": 1,
+        "max_text_length": 500,
+        "temperature": 0.667,
+        "length_scale": 1.0,
+        "noise_scale": 0.667,
+        "emotion_strength": 0.5
+    },
+    "emotions": {
+        "available": [
+            "neutral",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "fear"
+        ],
+        "default": "neutral"
+    },
+    "languages": {
+        "supported": [
+            "en-US",
+            "pt-BR",
+            "ja-JP",
+            "ko-KR",
+            "zh-CN",
+            "fr-FR",
+            "de-DE",
+            "ar-SA",
+            "es-ES"
+        ],
+        "default": "en-US",
+        "cross_lingual": true,
+        "auto_language_detection": true
+    },
+    "features": {
+        "zero_shot": true,
+        "few_shot": true,
+        "cross_lingual": true,
+        "real_time_factor": {
+            "rtx_4090": 15.0,
+            "rtx_4060": 5.0
+        },
+        "character_error_rate": 0.02,
+        "word_error_rate": 0.02
+    }
+} 

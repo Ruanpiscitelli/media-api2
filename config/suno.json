@@ -1,0 +1,200 @@
+{
+    "music": {
+        "model_name": "suno/musicgen-large",
+        "available_styles": [
+            {
+                "id": "classical",
+                "name": "Clássico",
+                "description": "Música clássica orquestral",
+                "instruments": ["strings", "piano", "woodwinds", "brass"]
+            },
+            {
+                "id": "electronic",
+                "name": "Eletrônico",
+                "description": "Música eletrônica e dance",
+                "instruments": ["synth", "drums", "bass"]
+            },
+            {
+                "id": "rock",
+                "name": "Rock",
+                "description": "Rock e suas variações",
+                "instruments": ["guitar", "bass", "drums", "vocals"]
+            },
+            {
+                "id": "jazz",
+                "name": "Jazz",
+                "description": "Jazz e blues",
+                "instruments": ["piano", "saxophone", "trumpet", "bass"]
+            },
+            {
+                "id": "pop",
+                "name": "Pop",
+                "description": "Música pop contemporânea",
+                "instruments": ["vocals", "guitar", "piano", "drums"]
+            },
+            {
+                "id": "ambient",
+                "name": "Ambiente",
+                "description": "Música ambiente e atmosférica",
+                "instruments": ["synth", "pad", "strings"]
+            }
+        ],
+        "available_instruments": [
+            {
+                "id": "piano",
+                "name": "Piano",
+                "category": "keys",
+                "styles": ["classical", "jazz", "pop"]
+            },
+            {
+                "id": "guitar",
+                "name": "Guitarra",
+                "category": "strings",
+                "styles": ["rock", "pop", "jazz"]
+            },
+            {
+                "id": "bass",
+                "name": "Baixo",
+                "category": "strings",
+                "styles": ["rock", "pop", "jazz", "electronic"]
+            },
+            {
+                "id": "drums",
+                "name": "Bateria",
+                "category": "percussion",
+                "styles": ["rock", "pop", "jazz", "electronic"]
+            },
+            {
+                "id": "strings",
+                "name": "Cordas",
+                "category": "orchestral",
+                "styles": ["classical", "ambient"]
+            },
+            {
+                "id": "synth",
+                "name": "Sintetizador",
+                "category": "electronic",
+                "styles": ["electronic", "ambient", "pop"]
+            },
+            {
+                "id": "brass",
+                "name": "Metais",
+                "category": "orchestral",
+                "styles": ["classical", "jazz"]
+            },
+            {
+                "id": "woodwinds",
+                "name": "Madeiras",
+                "category": "orchestral",
+                "styles": ["classical", "jazz"]
+            },
+            {
+                "id": "saxophone",
+                "name": "Saxofone",
+                "category": "woodwinds",
+                "styles": ["jazz", "pop"]
+            },
+            {
+                "id": "trumpet",
+                "name": "Trompete",
+                "category": "brass",
+                "styles": ["jazz", "classical"]
+            }
+        ],
+        "generation": {
+            "max_duration": 300,
+            "min_duration": 10,
+            "default_duration": 30,
+            "supported_formats": ["wav", "mp3", "ogg"],
+            "default_format": "wav",
+            "sample_rate": 44100,
+            "channels": 2
+        }
+    },
+    "voice": {
+        "model_name": "suno/bark-voice",
+        "available_voices": [
+            {
+                "id": "pt_br_female_1",
+                "name": "Ana",
+                "gender": "female",
+                "language": "pt-BR",
+                "description": "Voz feminina profissional em português",
+                "styles": ["pop", "jazz"],
+                "can_sing": true,
+                "preview_url": "/media/voices/ana_preview.mp3"
+            },
+            {
+                "id": "pt_br_male_1",
+                "name": "João",
+                "gender": "male",
+                "language": "pt-BR",
+                "description": "Voz masculina jovem em português",
+                "styles": ["rock", "pop"],
+                "can_sing": true,
+                "preview_url": "/media/voices/joao_preview.mp3"
+            },
+            {
+                "id": "en_us_female_1",
+                "name": "Sarah",
+                "gender": "female",
+                "language": "en-US",
+                "description": "Professional female voice in English",
+                "styles": ["pop", "jazz"],
+                "can_sing": true,
+                "preview_url": "/media/voices/sarah_preview.mp3"
+            },
+            {
+                "id": "en_us_male_1",
+                "name": "Michael",
+                "gender": "male",
+                "language": "en-US",
+                "description": "Professional male voice in English",
+                "styles": ["rock", "pop"],
+                "can_sing": true,
+                "preview_url": "/media/voices/michael_preview.mp3"
+            }
+        ],
+        "generation": {
+            "supported_formats": ["wav", "mp3"],
+            "default_format": "wav",
+            "sample_rate": 44100,
+            "channels": 1,
+            "emotions": [
+                "neutral",
+                "happy",
+                "sad",
+                "angry",
+                "excited",
+                "tender"
+            ],
+            "pitch_range": {
+                "min": -12,
+                "max": 12,
+                "default": 0
+            },
+            "formant_range": {
+                "min": -1.0,
+                "max": 1.0,
+                "default": 0.0
+            }
+        }
+    },
+    "system": {
+        "cache": {
+            "max_size": "10GB",
+            "ttl": 3600,
+            "cleanup_interval": 300
+        },
+        "gpu": {
+            "min_vram": "4GB",
+            "preferred_vram": "8GB",
+            "max_batch_size": 4
+        },
+        "output": {
+            "base_url": "/media/suno",
+            "directory": "outputs/suno",
+            "max_file_age": 86400
+        }
+    }
+} 

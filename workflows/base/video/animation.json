@@ -1,0 +1,247 @@
+{
+    "name": "Animação com FastHuayuan",
+    "description": "Workflow para geração de animações usando FastHuayuan",
+    "version": "1.0.0",
+    "nodes": {
+        "1": {
+            "id": 1,
+            "type": "FastHuayuanLoader",
+            "pos": [0, 0],
+            "inputs": {
+                "model_path": "models/fast_huayuan/base"
+            }
+        },
+        "2": {
+            "id": 2,
+            "type": "CLIPTextEncode",
+            "pos": [200, 0],
+            "inputs": {
+                "text": "",
+                "clip": ["1", 0]
+            }
+        },
+        "3": {
+            "id": 3,
+            "type": "CLIPTextEncode",
+            "pos": [200, 200],
+            "inputs": {
+                "text": "low quality, bad animation, worst quality, blurry",
+                "clip": ["1", 0]
+            }
+        },
+        "4": {
+            "id": 4,
+            "type": "EmptyLatentVideo",
+            "pos": [0, 400],
+            "inputs": {
+                "width": 512,
+                "height": 512,
+                "frame_count": 16,
+                "fps": 8
+            }
+        },
+        "5": {
+            "id": 5,
+            "type": "MotionModule",
+            "pos": [400, 200],
+            "inputs": {
+                "latents": ["4", 0],
+                "motion_scale": 1.0,
+                "apply_nsfw_filter": true
+            }
+        },
+        "6": {
+            "id": 6,
+            "type": "AnimationSampler",
+            "pos": [600, 200],
+            "inputs": {
+                "model": ["1", 0],
+                "motion_module": ["5", 0],
+                "positive": ["2", 0],
+                "negative": ["3", 0],
+                "latent_video": ["4", 0],
+                "seed": 0,
+                "steps": 25,
+                "cfg": 7.5,
+                "motion_bucket_id": 127,
+                "fps": 8
+            }
+        },
+        "7": {
+            "id": 7,
+            "type": "VAEDecode",
+            "pos": [800, 200],
+            "inputs": {
+                "samples": ["6", 0],
+                "vae": ["1", 2]
+            }
+        },
+        "8": {
+            "id": 8,
+            "type": "VoiceSync",
+            "pos": [1000, 200],
+            "inputs": {
+                "video": ["7", 0],
+                "text": "",
+                "voice": "default",
+                "emotion": "neutral"
+            }
+        },
+        "9": {
+            "id": 9,
+            "type": "SaveVideo",
+            "pos": [1200, 200],
+            "inputs": {
+                "video": ["8", 0],
+                "audio": ["8", 1],
+                "filename_prefix": "output/animation_",
+                "filename_suffix": "",
+                "fps": 8,
+                "format": "mp4",
+                "codec": "h264",
+                "crf": 23
+            }
+        }
+    },
+    "connections": [
+        {
+            "from": {
+                "node": 1,
+                "output": 0
+            },
+            "to": {
+                "node": 2,
+                "input": "clip"
+            }
+        },
+        {
+            "from": {
+                "node": 1,
+                "output": 0
+            },
+            "to": {
+                "node": 3,
+                "input": "clip"
+            }
+        },
+        {
+            "from": {
+                "node": 4,
+                "output": 0
+            },
+            "to": {
+                "node": 5,
+                "input": "latents"
+            }
+        },
+        {
+            "from": {
+                "node": 1,
+                "output": 0
+            },
+            "to": {
+                "node": 6,
+                "input": "model"
+            }
+        },
+        {
+            "from": {
+                "node": 5,
+                "output": 0
+            },
+            "to": {
+                "node": 6,
+                "input": "motion_module"
+            }
+        },
+        {
+            "from": {
+                "node": 2,
+                "output": 0
+            },
+            "to": {
+                "node": 6,
+                "input": "positive"
+            }
+        },
+        {
+            "from": {
+                "node": 3,
+                "output": 0
+            },
+            "to": {
+                "node": 6,
+                "input": "negative"
+            }
+        },
+        {
+            "from": {
+                "node": 4,
+                "output": 0
+            },
+            "to": {
+                "node": 6,
+                "input": "latent_video"
+            }
+        },
+        {
+            "from": {
+                "node": 6,
+                "output": 0
+            },
+            "to": {
+                "node": 7,
+                "input": "samples"
+            }
+        },
+        {
+            "from": {
+                "node": 1,
+                "output": 2
+            },
+            "to": {
+                "node": 7,
+                "input": "vae"
+            }
+        },
+        {
+            "from": {
+                "node": 7,
+                "output": 0
+            },
+            "to": {
+                "node": 8,
+                "input": "video"
+            }
+        },
+        {
+            "from": {
+                "node": 8,
+                "output": 0
+            },
+            "to": {
+                "node": 9,
+                "input": "video"
+            }
+        },
+        {
+            "from": {
+                "node": 8,
+                "output": 1
+            },
+            "to": {
+                "node": 9,
+                "input": "audio"
+            }
+        }
+    ],
+    "metadata": {
+        "author": "Media API",
+        "license": "MIT",
+        "tags": ["animation", "video", "voice-sync"],
+        "requirements": {
+            "gpu_memory": "16GB",
+            "cuda_version": ">=12.1"
+        }
+    }
+} 

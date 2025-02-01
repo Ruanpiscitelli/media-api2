@@ -1,0 +1,173 @@
+{
+    "id": "anime_style_v1",
+    "name": "Anime Style Workflow",
+    "version": "1.0",
+    "description": "Workflow otimizado para geração de imagens em estilo anime",
+    "nodes": {
+        "prompt_positive": {
+            "id": 1,
+            "type": "CLIPTextEncode",
+            "pos": [150, 50],
+            "size": {"width": 400, "height": 200},
+            "flags": {},
+            "order": 0,
+            "inputs": {
+                "text": "",
+                "clip": ["clip", ""],
+                "token_normalization": "none",
+                "weight_interpretation": "comfy"
+            }
+        },
+        "prompt_negative": {
+            "id": 2,
+            "type": "CLIPTextEncode",
+            "pos": [150, 300],
+            "size": {"width": 400, "height": 200},
+            "flags": {},
+            "order": 1,
+            "inputs": {
+                "text": "low quality, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+                "clip": ["clip", ""]
+            }
+        },
+        "checkpoint": {
+            "id": 3,
+            "type": "CheckpointLoaderSimple",
+            "pos": [50, 50],
+            "size": {"width": 300, "height": 100},
+            "flags": {},
+            "order": 2,
+            "inputs": {
+                "ckpt_name": "animexl_v1.safetensors"
+            }
+        },
+        "style_processor": {
+            "id": 10,
+            "type": "StyleProcessor",
+            "pos": [400, 300],
+            "size": {"width": 300, "height": 150},
+            "flags": {},
+            "order": 3,
+            "inputs": {
+                "style_text": "anime style, detailed linework, vibrant colors",
+                "weight": 1.2,
+                "clip": ["3", 1]
+            }
+        },
+        "style_combiner": {
+            "id": 11,
+            "type": "PromptCombiner",
+            "pos": [600, 300],
+            "size": {"width": 300, "height": 150},
+            "flags": {},
+            "order": 4,
+            "inputs": {
+                "prompt1": ["1", 0],
+                "prompt2": ["10", 0],
+                "weight1": 1.0,
+                "weight2": 0.8
+            }
+        },
+        "empty_latent": {
+            "id": 4,
+            "type": "EmptyLatentImage",
+            "pos": [400, 50],
+            "size": {"width": 300, "height": 100},
+            "flags": {},
+            "order": 5,
+            "inputs": {
+                "width": 1024,
+                "height": 1024,
+                "batch_size": 1
+            }
+        },
+        "sampler": {
+            "id": 5,
+            "type": "KSampler",
+            "pos": [700, 50],
+            "size": {"width": 300, "height": 400},
+            "flags": {},
+            "order": 6,
+            "inputs": {
+                "model": ["3", 0],
+                "positive": ["11", 0],
+                "negative": ["2", 0],
+                "latent_image": ["4", 0],
+                "seed": 0,
+                "steps": 28,
+                "cfg": 8.0,
+                "sampler_name": "dpmpp_2m",
+                "scheduler": "karras",
+                "denoise": 1.0
+            }
+        },
+        "vae_decoder": {
+            "id": 6,
+            "type": "VAEDecode",
+            "pos": [1000, 50],
+            "inputs": {
+                "samples": ["5", 0],
+                "vae": ["3", 2]
+            }
+        },
+        "image_processor": {
+            "id": 12,
+            "type": "ImageProcessor",
+            "pos": [1200, 50],
+            "size": {"width": 300, "height": 150},
+            "flags": {},
+            "order": 7,
+            "inputs": {
+                "image": ["6", 0],
+                "sharpness": 1.2,
+                "contrast": 1.1,
+                "brightness": 1.05,
+                "saturation": 1.1
+            }
+        },
+        "save_image": {
+            "id": 7,
+            "type": "SaveImage",
+            "pos": [1500, 50],
+            "inputs": {
+                "images": ["12", 0],
+                "filename_prefix": "anime_output"
+            }
+        }
+    },
+    "links": [
+        [1, "prompt_positive", 11, "prompt1"],
+        [2, "prompt_negative", 5, "negative"],
+        [3, "checkpoint", 1, "clip"],
+        [3, "checkpoint", 2, "clip"],
+        [3, "checkpoint", 10, "clip"],
+        [4, "empty_latent", 5, "latent_image"],
+        [5, "sampler", 6, "samples"],
+        [6, "vae_decoder", 12, "image"],
+        [10, "style_processor", 11, "prompt2"],
+        [11, "style_combiner", 5, "positive"],
+        [12, "image_processor", 7, "images"]
+    ],
+    "config": {
+        "default_parameters": {
+            "steps": 28,
+            "cfg_scale": 8.0,
+            "width": 1024,
+            "height": 1024
+        },
+        "optimization": {
+            "batch_size": 1,
+            "fp16": true,
+            "xformers": true
+        },
+        "style_parameters": {
+            "line_weight": 1.2,
+            "color_intensity": 1.1,
+            "detail_level": "high",
+            "sharpness": 1.2,
+            "contrast": 1.1,
+            "brightness": 1.05,
+            "saturation": 1.1
+        }
+    }
+} 
