@@ -1,6 +1,6 @@
 # Configuração do Media API na Vast.ai via Terminal
 
-Este guia explica como configurar o Media API (https://github.com/Ruanpiscitelli/media-api2) na Vast.ai usando a imagem aidockorg/comfyui-cuda como base.
+Este guia explica como configurar o Media API na Vast.ai usando a imagem nvidia/cuda:12.1.0-runtime-ubuntu22.04 como base.
 
 ## Pré-requisitos
 
@@ -12,242 +12,131 @@ Este guia explica como configurar o Media API (https://github.com/Ruanpiscitelli
 
 1. Acesse https://vast.ai/console/create/
 2. Configure a instância:
-   - Imagem: `aidockorg/comfyui-cuda:latest`
+   - Imagem: `nvidia/cuda:12.1.0-runtime-ubuntu22.04`
    - GPU: RTX 4090 (1-4x)
    - RAM: Mínimo 32GB
-   - Disco: 100GB
-   - Portas: 8000,8188,6379,8080
+   - Disk: 100GB
+   - Docker Options:
+     ```
+     -p 8000:8000 -p 8080:8080 -p 8188:8188 -p 6379:6379 -p 5000:5000 -p 5678:5678 -e NVIDIA_VISIBLE_DEVICES=all -e CUDA_VISIBLE_DEVICES=all -e DATA_DIRECTORY=/workspace/ -e PORTAL_CONFIG="localhost:8000:8000:/:API|localhost:8080:8080:/:GUI|localhost:8188:8188:/:ComfyUI|localhost:6379:6379:/:Redis" --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+     ```
    - Selecione "Enable SSH"
 
-## 2. Script de Configuração
+## 2. Configuração Inicial
 
-Após conectar via SSH, crie o arquivo setup.sh:
+Após conectar via SSH:
 
 ```bash
-cat > setup.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "Iniciando configuração do Media API..."
-
-# Configuração do sistema
+# 1. Instalar dependências do sistema
 apt-get update && apt-get install -y \
     git python3-pip python3-venv redis-server net-tools ffmpeg \
-    nvidia-cuda-toolkit nvidia-cuda-toolkit-gcc \
     pkg-config libicu-dev python3-dev
 
-# Estrutura de diretórios
+# 2. Criar estrutura de diretórios
 mkdir -p /workspace/{logs,media,cache,models,config,temp} \
         /workspace/models/{lora,checkpoints,vae} \
         /workspace/media/{audio,images,video}
 
-# Clone do repositório
+# 3. Clonar repositório
 git clone https://github.com/Ruanpiscitelli/media-api2.git /workspace/media-api2
 
-# Ambiente Python
+# 4. Instalar e Configurar ComfyUI
+git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+cd /workspace/ComfyUI
+
+# Instalar nós personalizados
+mkdir -p custom_nodes
+cd custom_nodes
+git clone https://github.com/ltdrdata/ComfyUI-Manager.git
+git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git
+git clone https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
+git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git
+git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
+
+# Criar diretórios para modelos
+cd /workspace/ComfyUI
+mkdir -p models/{checkpoints,clip,clip_vision,controlnet,ipadapter,loras,upscale_models,vae}
+
+# Instalar dependências do ComfyUI
+pip install -r requirements.txt
+
+# Instalar dependências dos nós personalizados
+for req in custom_nodes/*/requirements.txt; do
+    if [ -f "$req" ]; then
+        echo "Instalando dependências de: $req"
+        pip install -r "$req" || true
+    fi
+done
+
+# Iniciar ComfyUI
+nohup python main.py --listen 0.0.0.0 --port 8188 --enable-cors-header > /workspace/logs/comfyui.log 2>&1 &
+
+# 5. Configurar ambiente Python
 python3 -m venv /workspace/venv_clean
 source /workspace/venv_clean/bin/activate
 
-# Atualizar pip e instalar ferramentas básicas
+# 6. Instalar dependências Python
 pip install --upgrade pip wheel setuptools
+pip install -r /workspace/media-api2/requirements/vast.txt
+pip install -r /workspace/media-api2/requirements.txt
+```
 
-# Remover instalações existentes para evitar conflitos
-pip uninstall -y fastapi gradio uvicorn apscheduler
+## 3. Configuração do Redis
 
-# Dependências CUDA
-pip install -r requirements/vast.txt
-
-# Verificar instalação do ComfyUI
-cd /workspace/ComfyUI
-python -c "import folder_paths" || pip install -r requirements.txt
-
-# Dependências do projeto
-cd /workspace/media-api2
-pip install -r requirements.txt
-
-# Configuração do Redis
-cat > /etc/redis/redis.conf << REDISCONF
+```bash
+# Configurar Redis
+cat > /etc/redis/redis.conf << EOF
 bind 127.0.0.1
 port 6379
 maxmemory 8gb
 maxmemory-policy allkeys-lru
-REDISCONF
+EOF
 
-# Configurar variáveis de ambiente
-cat > /workspace/.env << ENVFILE
-NVIDIA_VISIBLE_DEVICES=all
-DATA_DIRECTORY=/workspace
-API_HOST=0.0.0.0
-API_PORT=8000
-REDIS_HOST=localhost
-REDIS_PORT=6379
-COMFY_HOST=0.0.0.0
-COMFY_PORT=8188
-MEDIA_DIR=/workspace/media
-MODELS_DIR=/workspace/models
-ENVFILE
-
-# Iniciar serviços
+# Iniciar Redis
 service redis-server restart
+```
 
+## 4. Iniciar Serviços
+
+```bash
 # Configurar logs
 mkdir -p /workspace/logs
 touch /workspace/logs/{api,redis,gpu}.log
 
-# Iniciar API com múltiplos workers
+# Iniciar API
 cd /workspace/media-api2
-source /workspace/venv_clean/bin/activate
 nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) \
     --log-level info --log-file /workspace/logs/api.log &
 
-# Script de monitoramento
-cat > /workspace/monitor.sh << 'MONITOREOF'
+# Script de monitoramento GPU
+cat > /workspace/monitor.sh << 'EOF'
 #!/bin/bash
 while true; do
-    echo "\n=== GPU Status ===" >> /workspace/logs/gpu.log
     nvidia-smi >> /workspace/logs/gpu.log
     sleep 60
 done
-MONITOREOF
-
+EOF
 chmod +x /workspace/monitor.sh
 nohup /workspace/monitor.sh &
-
-echo "Configuração concluída!"
-EOF
-
-chmod +x setup.sh
 ```
 
-## 3. Execução e Deploy
+## 5. Verificação
 
-1. Conecte-se via SSH:
 ```bash
-ssh root@<ip> -p <porta>
-```
-
-2. Execute o script:
-```bash
-cd /workspace
-./setup.sh
-```
-
-## 4. Verificação e Monitoramento
-
-1. Verifique os serviços:
-```bash
-# Status da API
+# Verificar serviços
 curl localhost:8000/health
-
-# Logs da API
-tail -f /workspace/logs/api.log
-
-# Status do Redis
 redis-cli ping
-
-# Monitoramento GPU
 nvidia-smi
-```
+curl localhost:8188  # Verificar ComfyUI
 
-2. Teste os endpoints:
-```bash
-# Primeiro, obtenha o token de autenticação
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "seu_usuario", "password": "sua_senha"}' \
-  | jq -r '.access_token' > token.txt
-
-# Guarde o token em uma variável
-TOKEN=$(cat token.txt)
-
-# Teste de áudio com autenticação
-curl -X POST http://localhost:8000/api/v1/audio/generate \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"text": "teste", "voice_id": "1"}'
-
-# Teste de imagem com autenticação
-curl -X POST http://localhost:8000/api/v1/image/generate \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"prompt": "teste"}'
-```
-
-## 5. Comandos Úteis
-
-```bash
-# Reiniciar serviços
-service redis-server restart
-pkill -f uvicorn
-cd /workspace/media-api2 && \
-source /workspace/venv_clean/bin/activate && \
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) &
-
-# Limpar cache
-redis-cli FLUSHALL
-rm -rf /workspace/cache/*
-
-# Backup rápido
-tar -czf /workspace/backup_$(date +%Y%m%d).tar.gz \
-    /workspace/media-api2/config \
-    /workspace/models \
-    /workspace/media
-
-# Monitoramento
-watch -n1 nvidia-smi
+# Verificar logs
 tail -f /workspace/logs/*.log
 ```
 
-## 6. Solução de Problemas
+## 6. Autenticação
 
-1. **Verificar Status:**
 ```bash
-# Processos
-ps aux | grep uvicorn
-ps aux | grep redis
-
-# Portas
-netstat -tulpn
-
-# GPU
-nvidia-smi
-```
-
-2. **Problemas Comuns:**
-```bash
-# Erro de CUDA
-python3 -c "import torch; print(torch.cuda.is_available())"
-
-# Erro de memória
-free -h
-redis-cli info | grep used_memory_human
-
-# Logs de erro
-tail -f /workspace/logs/api.log
-```
-
-3. **Reiniciar Tudo:**
-```bash
-# Parar serviços
-pkill -f uvicorn
-service redis-server stop
-
-# Limpar
-redis-cli FLUSHALL
-rm -rf /workspace/cache/*
-
-# Reiniciar
-service redis-server start
-cd /workspace/media-api2 && \
-source /workspace/venv_clean/bin/activate && \
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) &
-```
-
-## Autenticação e Tokens
-
-### 1. Criar Usuário Inicial
-```bash
-# Crie um usuário administrativo
+# Criar usuário admin
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
@@ -256,79 +145,88 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
     "email": "admin@exemplo.com",
     "role": "admin"
   }'
-```
 
-### 2. Login e Obtenção do Token
-```bash
-# Login e salvar token
+# Obter token
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
     "password": "senha_segura"
-  }' | jq -r '.access_token' > token.txt
-
-# Usar token em requisições
-TOKEN=$(cat token.txt)
+  }' | jq -r '.access_token' > /workspace/token.txt
 ```
 
-### 3. Exemplo de Script para Requisições
+## 7. Script de Reinicialização
+
 ```bash
+cat > /workspace/restart.sh << 'EOF'
 #!/bin/bash
 
-# Configurações
-API_URL="http://localhost:8000"
-USERNAME="admin"
-PASSWORD="senha_segura"
+echo "Reiniciando serviços..."
 
-# Login e obtenção do token
-TOKEN=$(curl -s -X POST "$API_URL/api/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" \
-  | jq -r '.access_token')
+# Parar serviços
+pkill -f "uvicorn"
+pkill -f "python main.py"  # Parar ComfyUI
+service redis-server stop
 
-# Função para fazer requisições autenticadas
-make_request() {
-    local endpoint=$1
-    local data=$2
-    
-    curl -s -X POST "$API_URL$endpoint" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $TOKEN" \
-      -d "$data"
-}
+# Limpar cache
+redis-cli FLUSHALL
+rm -rf /workspace/cache/*
 
-# Exemplos de uso
-# Gerar áudio
-make_request "/api/v1/audio/generate" \
-  '{"text":"teste de audio","voice_id":"1"}'
+# Reiniciar serviços
+service redis-server start
 
-# Gerar imagem
-make_request "/api/v1/image/generate" \
-  '{"prompt":"teste de imagem"}'
+# Ativar ambiente
+source /workspace/venv_clean/bin/activate
+
+# Iniciar ComfyUI
+cd /workspace/ComfyUI
+nohup python main.py --listen 0.0.0.0 --port 8188 --enable-cors-header > /workspace/logs/comfyui.log 2>&1 &
+
+# Iniciar API
+cd /workspace/media-api2
+nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) \
+    --log-level info --log-file /workspace/logs/api.log &
+
+echo "Serviços reiniciados!"
+EOF
+
+chmod +x /workspace/restart.sh
 ```
 
-### 4. Renovação do Token
+## 8. Acessando a GUI
+
+### Método 1: Via Vast.ai Dashboard
+1. Acesse https://vast.ai/console/instances/
+2. Encontre sua instância
+3. Procure pela porta 8080 nos "exposed ports"
+4. Clique no link fornecido ou use a URL: `http://[ip-instance]:[port]`
+
+### Método 2: Via Túnel SSH
 ```bash
-# Renovar token expirado
-curl -X POST http://localhost:8000/api/v1/auth/refresh \
-  -H "Authorization: Bearer $TOKEN"
+# Criar túnel SSH
+ssh -L 8080:localhost:8080 root@[ip-instance] -p [porta-ssh]
+
+# Agora acesse no navegador:
+# http://localhost:8080
 ```
 
-### 5. Verificar Status do Token
-```bash
-# Verificar se o token é válido
-curl http://localhost:8000/api/v1/auth/verify \
-  -H "Authorization: Bearer $TOKEN"
-```
+### Endpoints Disponíveis
+- `/` - Página inicial com documentação
+- `/auth` - Página de autenticação
+- `/endpoints/[seção]` - Documentação específica de cada seção
+  - `/endpoints/auth` - Autenticação
+  - `/endpoints/comfy` - ComfyUI
+  - `/endpoints/image` - Geração de Imagem
+  - `/endpoints/video` - Geração de Vídeo
+  - `/endpoints/speech` - Síntese de Voz
+  - `/endpoints/system` - Sistema
 
 ## Referências
 
 - [Media API Documentation](https://github.com/Ruanpiscitelli/media-api2)
-- [ComfyUI Docker Image](https://hub.docker.com/r/aidockorg/comfyui-cuda)
 - [Vast.ai Documentation](https://vast.ai/docs/)
 
-## 8. Persistência e Backup
+## 9. Persistência e Backup
 
 ### Backup Automático
 ```bash
@@ -509,7 +407,7 @@ EOF
 chmod +x /workspace/healthcheck.sh
 ```
 
-## 9. Procedimento Pós-Reinicialização
+## 10. Procedimento Pós-Reinicialização
 
 ### Passo a Passo após Reiniciar
 ```bash
@@ -607,7 +505,7 @@ chmod +x /workspace/restart.sh
 TOKEN=$(cat /workspace/token.txt)
 ```
 
-## 10. Inicialização Automática
+## 11. Inicialização Automática
 
 ### Configurar Serviços Systemd
 ```bash

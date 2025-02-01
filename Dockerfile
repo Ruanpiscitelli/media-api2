@@ -67,5 +67,9 @@ tail -f /workspace/logs/*.log' > /workspace/start.sh && chmod +x /workspace/star
 # Expor portas
 EXPOSE 8000 8188 6379
 
+# Copiar entrypoint
+COPY scripts/setup/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Comando de inicialização
-CMD ["/workspace/start.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
