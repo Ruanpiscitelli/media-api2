@@ -1,33 +1,81 @@
 """
-Utilitários para processamento de áudio.
+Processador de áudio.
 """
 
 import io
+import uuid
 import logging
 import numpy as np
-import soundfile as sf
-import librosa
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
+
 import torch
 import torchaudio
+import soundfile as sf
 from pydub import AudioSegment
-import uuid
+from pydub.silence import split_on_silence
 
 logger = logging.getLogger(__name__)
 
 class AudioProcessor:
-    """Processador de áudio com funções avançadas."""
+    """Classe para processamento de áudio."""
     
     def __init__(self):
-        """Inicializa o processador."""
-        pass
+        self.sample_rate = 44100
+        self.channels = 2
         
-    async def concatenate(
+    def load_audio(self, file_path: Union[str, Path]) -> Optional[torch.Tensor]:
+        """
+        Carrega arquivo de áudio de forma síncrona.
+        
+        Args:
+            file_path: Caminho do arquivo de áudio
+            
+        Returns:
+            Tensor do PyTorch contendo o áudio ou None se houver erro
+        """
+        try:
+            waveform, sample_rate = torchaudio.load(file_path)
+            if sample_rate != self.sample_rate:
+                waveform = torchaudio.functional.resample(
+                    waveform, 
+                    sample_rate, 
+                    self.sample_rate
+                )
+            return waveform
+        except Exception as e:
+            logger.error(f"Erro ao carregar áudio: {e}")
+            return None
+            
+    def save_audio(self, waveform: torch.Tensor, file_path: Union[str, Path]) -> bool:
+        """
+        Salva tensor como arquivo de áudio de forma síncrona.
+        
+        Args:
+            waveform: Tensor contendo o áudio
+            file_path: Caminho onde salvar o arquivo
+            
+        Returns:
+            True se salvou com sucesso, False caso contrário
+        """
+        try:
+            torchaudio.save(
+                file_path,
+                waveform,
+                self.sample_rate,
+                channels_first=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar áudio: {e}")
+            return False
+
+    def concatenate(
         self,
-        audio_paths: List[str],
+        audio_paths: List[Union[str, Path]],
         crossfade: float = 0.3,
         format: str = "wav"
-    ) -> str:
+    ) -> Optional[str]:
         """
         Concatena múltiplos arquivos de áudio com crossfade.
         
@@ -35,76 +83,63 @@ class AudioProcessor:
             audio_paths: Lista de caminhos dos arquivos
             crossfade: Duração do crossfade em segundos
             format: Formato do arquivo de saída
-            
+        
         Returns:
-            Caminho do arquivo concatenado
+            Caminho do arquivo concatenado ou None se houver erro
         """
         try:
-            # Carrega segmentos
-            segments = [AudioSegment.from_file(path) for path in audio_paths]
+            segments = [AudioSegment.from_file(str(path)) for path in audio_paths]
             
-            # Configura crossfade
             crossfade_ms = int(crossfade * 1000)
             
-            # Concatena com crossfade
             final_audio = segments[0]
             for segment in segments[1:]:
-                final_audio = final_audio.append(
-                    segment,
-                    crossfade=crossfade_ms
-                )
+                final_audio = final_audio.append(segment, crossfade=crossfade_ms)
                 
-            # Normaliza volume
             final_audio = final_audio.normalize()
             
-            # Gera nome único
             output_path = f"outputs/speech/concat_{uuid.uuid4()}.{format}"
             
-            # Exporta
             final_audio.export(
                 output_path,
                 format=format,
-                parameters=["-ac", "1"]  # Mono
+                parameters=["-ac", "1"]
             )
             
             return output_path
             
         except Exception as e:
             logger.error(f"Erro concatenando áudios: {e}")
-            raise
-            
-    async def prepare_for_streaming(
+            return None
+
+    def prepare_for_streaming(
         self,
-        audio_path: str,
+        audio_path: Union[str, Path],
         chunk_size: int = 4096,
         format: str = "wav"
-    ) -> bytes:
+    ) -> Optional[bytes]:
         """
         Prepara áudio para streaming.
-        
+            
         Args:
             audio_path: Caminho do arquivo
             chunk_size: Tamanho do chunk em bytes
             format: Formato do áudio
             
         Returns:
-            Chunk de áudio em bytes
+            Chunk de áudio em bytes ou None se houver erro
         """
         try:
-            # Carrega áudio
-            audio, sr = librosa.load(audio_path, sr=None)
-            
-            # Converte para int16
-            audio = (audio * 32767).astype(np.int16)
-            
-            # Cria buffer
+            waveform = self.load_audio(audio_path)
+            if waveform is None:
+                return None
+                
             buffer = io.BytesIO()
             
-            # Salva no formato correto
             sf.write(
                 buffer,
-                audio,
-                sr,
+                waveform.numpy().T,
+                self.sample_rate,
                 format=format,
                 subtype='PCM_16'
             )
@@ -113,13 +148,13 @@ class AudioProcessor:
             
         except Exception as e:
             logger.error(f"Erro preparando áudio para streaming: {e}")
-            raise
-            
-    async def apply_effects(
+            return None
+
+    def apply_effects(
         self,
-        audio_path: str,
+        audio_path: Union[str, Path],
         effects: Optional[dict] = None
-    ) -> str:
+    ) -> Optional[str]:
         """
         Aplica efeitos no áudio.
         
@@ -128,35 +163,20 @@ class AudioProcessor:
             effects: Dicionário com efeitos a aplicar
             
         Returns:
-            Caminho do arquivo processado
+            Caminho do arquivo processado ou None se houver erro
         """
         try:
             if not effects:
-                return audio_path
+                return str(audio_path)
                 
-            # Carrega áudio
-            audio = AudioSegment.from_file(audio_path)
+            audio = AudioSegment.from_file(str(audio_path))
             
-            # Aplica efeitos
             if effects.get('normalize'):
                 audio = audio.normalize()
                 
             if effects.get('remove_silence'):
                 audio = self._remove_silence(audio)
                 
-            if effects.get('reverb'):
-                audio = self._apply_reverb(
-                    audio,
-                    **effects['reverb']
-                )
-                
-            if effects.get('eq'):
-                audio = self._apply_eq(
-                    audio,
-                    **effects['eq']
-                )
-                
-            # Salva resultado
             output_path = f"outputs/speech/processed_{uuid.uuid4()}.wav"
             audio.export(output_path, format="wav")
             
@@ -164,8 +184,26 @@ class AudioProcessor:
             
         except Exception as e:
             logger.error(f"Erro aplicando efeitos: {e}")
-            raise
+            return None
+
+    def get_duration(self, audio_path: Union[str, Path]) -> Optional[float]:
+        """
+        Obtém duração do áudio em segundos.
+        
+        Args:
+            audio_path: Caminho do arquivo
             
+        Returns:
+            Duração em segundos ou None se houver erro
+        """
+        try:
+            audio = AudioSegment.from_file(str(audio_path))
+            return len(audio) / 1000.0
+            
+        except Exception as e:
+            logger.error(f"Erro obtendo duração: {e}")
+            return None
+
     def _remove_silence(
         self,
         audio: AudioSegment,
@@ -179,79 +217,3 @@ class AudioProcessor:
             silence_thresh=silence_thresh
         )
         return sum(chunks, AudioSegment.empty())
-        
-    def _apply_reverb(
-        self,
-        audio: AudioSegment,
-        room_size: float = 0.5,
-        damping: float = 0.5,
-        wet_level: float = 0.3,
-        dry_level: float = 0.7
-    ) -> AudioSegment:
-        """Aplica efeito de reverberação."""
-        # Converte para numpy
-        samples = np.array(audio.get_array_of_samples())
-        
-        # Aplica reverb
-        reverb = np.zeros_like(samples, dtype=np.float32)
-        decay = np.exp(-damping * np.arange(len(samples)))
-        
-        for i in range(len(samples)):
-            if i < room_size * len(samples):
-                reverb[i] = samples[i]
-            else:
-                idx = int(i - room_size * len(samples))
-                reverb[i] = samples[i] * dry_level + \
-                           samples[idx] * wet_level * decay[i-idx]
-                           
-        # Converte de volta
-        return AudioSegment(
-            reverb.tobytes(),
-            frame_rate=audio.frame_rate,
-            sample_width=audio.sample_width,
-            channels=audio.channels
-        )
-        
-    def _apply_eq(
-        self,
-        audio: AudioSegment,
-        low_gain: float = 1.0,
-        mid_gain: float = 1.0,
-        high_gain: float = 1.0
-    ) -> AudioSegment:
-        """Aplica equalização de 3 bandas."""
-        # Frequências de corte
-        low_shelf = 200   # Hz
-        high_shelf = 2000 # Hz
-        
-        # Aplica filtros
-        audio = audio.low_shelf_filter(
-            low_shelf,
-            gain=low_gain
-        )
-        
-        audio = audio.high_shelf_filter(
-            high_shelf,
-            gain=high_gain
-        )
-        
-        # Ganho médio
-        return audio + (mid_gain - 1.0) * 10
-        
-    async def get_duration(self, audio_path: str) -> float:
-        """
-        Obtém duração do áudio em segundos.
-        
-        Args:
-            audio_path: Caminho do arquivo
-            
-        Returns:
-            Duração em segundos
-        """
-        try:
-            audio = AudioSegment.from_file(audio_path)
-            return len(audio) / 1000.0
-            
-        except Exception as e:
-            logger.error(f"Erro obtendo duração: {e}")
-            raise 

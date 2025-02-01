@@ -30,6 +30,9 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 import secrets
+import redis
+from redis.asyncio import Redis
+import redis.asyncio
 
 # Importação dos routers
 from src.api.v2.endpoints import (
@@ -613,6 +616,38 @@ def run_gui():
 # Iniciar GUI em um processo separado
 gui_process = Process(target=run_gui)
 gui_process.start()
+
+# Criar cliente Redis assíncrono
+redis_client = Redis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB,
+    decode_responses=True
+)
+
+@app.on_event("startup")
+async def startup_event():
+    """Verifica serviços necessários na inicialização"""
+    # Verificar Redis
+    try:
+        is_connected = await redis_client.ping()
+        if is_connected:
+            logger.info("Redis conectado com sucesso")
+        else:
+            raise redis.RedisError("Falha na conexão com Redis - ping retornou False")
+    except redis.RedisError as e:
+        logger.error(f"Erro ao conectar ao Redis: {e}")
+        raise
+
+    # Verificar diretórios
+    for path in [settings.TEMP_DIR, settings.SUNO_OUTPUT_DIR, settings.SUNO_CACHE_DIR]:
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Diretório criado: {path}")
+
+    # Iniciar scheduler
+    scheduler.start()
+    logger.info("Scheduler iniciado")
 
 if __name__ == "__main__":
     # Configuração para debugging

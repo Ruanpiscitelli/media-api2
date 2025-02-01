@@ -4,314 +4,194 @@ Implementa estratégia de cache em RAM, GPU VRAM e Redis.
 """
 
 import asyncio
-from typing import Any, Optional, Dict
-import logging
 import json
-import hashlib
-
+import logging
+from typing import Any, Optional, Dict
 import torch
-import redis.asyncio as redis
+import aioredis
 from prometheus_client import Counter, Histogram
-
 from src.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 # Métricas Prometheus
-CACHE_HITS = Counter("cache_hits_total", "Total cache hits", ["level"])
-CACHE_MISSES = Counter("cache_misses_total", "Total cache misses", ["level"])
+CACHE_HITS = Counter("cache_hits_total", "Total de hits no cache", ["level"])
+CACHE_MISSES = Counter("cache_misses_total", "Total de misses no cache", ["level"])
 CACHE_LATENCY = Histogram(
     "cache_operation_latency_seconds",
-    "Cache operation latency in seconds",
+    "Latência das operações de cache em segundos",
     ["operation", "level"]
 )
 
-
-class CacheLevel:
+class BaseCache:
     """Interface base para níveis de cache."""
     
     def __init__(self, name: str):
         self.name = name
-        self.logger = logging.getLogger(f"cache.{name}")
-    
+        
     async def get(self, key: str) -> Optional[Any]:
         raise NotImplementedError
-    
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None):
+        
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
         raise NotImplementedError
-    
+        
     async def delete(self, key: str):
         raise NotImplementedError
-    
-    async def exists(self, key: str) -> bool:
-        raise NotImplementedError
 
-
-class RAMCache(CacheLevel):
-    """Cache em memória RAM usando dicionário."""
+class RAMCache(BaseCache):
+    """Cache em memória RAM."""
     
     def __init__(self):
         super().__init__("ram")
         self._cache: Dict[str, Any] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
-    
+        
     def _get_lock(self, key: str) -> asyncio.Lock:
-        """Retorna ou cria um lock para a chave."""
         if key not in self._locks:
             self._locks[key] = asyncio.Lock()
         return self._locks[key]
-    
+        
     async def get(self, key: str) -> Optional[Any]:
         async with self._get_lock(key):
             return self._cache.get(key)
-    
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None):
+            
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
         async with self._get_lock(key):
             self._cache[key] = value
-            
-            if ttl:
-                asyncio.create_task(self._expire(key, ttl))
-    
+            if expire:
+                asyncio.create_task(self._expire(key, expire))
+                
     async def delete(self, key: str):
         async with self._get_lock(key):
             self._cache.pop(key, None)
-    
-    async def exists(self, key: str) -> bool:
-        return key in self._cache
-    
-    async def _expire(self, key: str, ttl: int):
-        """Remove a chave após o TTL."""
-        await asyncio.sleep(ttl)
+            
+    async def _expire(self, key: str, expire: int):
+        await asyncio.sleep(expire)
         await self.delete(key)
 
-
-class VRAMCache(CacheLevel):
+class VRAMCache(BaseCache):
     """Cache em VRAM das GPUs."""
     
     def __init__(self):
         super().__init__("vram")
         self._cache: Dict[str, torch.Tensor] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
-    
+        
     def _get_lock(self, key: str) -> asyncio.Lock:
         if key not in self._locks:
             self._locks[key] = asyncio.Lock()
         return self._locks[key]
-    
-    async def get(self, key: str) -> Optional[torch.Tensor]:
+        
+    async def get(self, key: str) -> Optional[Any]:
         async with self._get_lock(key):
             return self._cache.get(key)
-    
-    async def set(self, key: str, value: torch.Tensor, ttl: Optional[int] = None):
+            
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
         async with self._get_lock(key):
-            # Move tensor para GPU se não estiver
-            if not value.is_cuda:
+            if isinstance(value, torch.Tensor) and not value.is_cuda:
                 value = value.cuda()
-            
             self._cache[key] = value
-            
-            if ttl:
-                asyncio.create_task(self._expire(key, ttl))
-    
+            if expire:
+                asyncio.create_task(self._expire(key, expire))
+                
     async def delete(self, key: str):
         async with self._get_lock(key):
             if key in self._cache:
                 del self._cache[key]
                 torch.cuda.empty_cache()
-    
-    async def exists(self, key: str) -> bool:
-        return key in self._cache
-    
-    async def _expire(self, key: str, ttl: int):
-        await asyncio.sleep(ttl)
+                
+    async def _expire(self, key: str, expire: int):
+        await asyncio.sleep(expire)
         await self.delete(key)
 
-
-class RedisCache(CacheLevel):
+class RedisCache(BaseCache):
     """Cache distribuído usando Redis."""
     
     def __init__(self):
         super().__init__("redis")
-        self.redis = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
+        self.redis = aioredis.from_url(
+            f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}",
             password=settings.REDIS_PASSWORD,
+            db=settings.REDIS_DB,
             decode_responses=True
         )
-    
+        
     async def get(self, key: str) -> Optional[Any]:
-        value = await self.redis.get(key)
-        if value:
-            return json.loads(value)
-        return None
-    
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None):
-        await self.redis.set(
-            key,
-            json.dumps(value),
-            ex=ttl
-        )
-    
+        try:
+            data = await self.redis.get(key)
+            return json.loads(data) if data else None
+        except Exception as e:
+            logger.error(f"Erro ao ler do Redis: {e}")
+            return None
+            
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
+        try:
+            data = json.dumps(value)
+            await self.redis.set(key, data, ex=expire)
+        except Exception as e:
+            logger.error(f"Erro ao gravar no Redis: {e}")
+            
     async def delete(self, key: str):
-        await self.redis.delete(key)
-    
-    async def exists(self, key: str) -> bool:
-        return await self.redis.exists(key) > 0
-    
-    def pipeline(self):
-        """Retorna um pipeline Redis para operações em lote."""
-        return self.redis.pipeline()
-
+        try:
+            await self.redis.delete(key)
+        except Exception as e:
+            logger.error(f"Erro ao deletar do Redis: {e}")
 
 class CacheManager:
     """Gerenciador de cache multi-nível."""
     
     def __init__(self):
-        self.logger = logging.getLogger("cache.manager")
         self.levels = {
             "ram": RAMCache(),
             "vram": VRAMCache(),
             "redis": RedisCache()
         }
-    
-    def get_cache(self, namespace: str) -> "NamespacedCache":
+        self.caches: Dict[str, 'Cache'] = {}
+        
+    def get_cache(self, namespace: str) -> 'Cache':
         """Retorna uma interface de cache com namespace."""
-        return NamespacedCache(self, namespace)
-    
-    async def get(self, key: str, level: Optional[str] = None) -> Optional[Any]:
-        """Busca um valor no cache, tentando todos os níveis."""
-        if level:
-            return await self._get_from_level(key, level)
-        
-        # Tenta cada nível em ordem
-        for level_name in ["ram", "vram", "redis"]:
-            with CACHE_LATENCY.labels(operation="get", level=level_name).time():
-                value = await self._get_from_level(key, level_name)
-                if value is not None:
-                    CACHE_HITS.labels(level=level_name).inc()
-                    return value
-                CACHE_MISSES.labels(level=level_name).inc()
-        
-        return None
-    
-    async def set(
-        self,
-        key: str,
-        value: Any,
-        ttl: Optional[int] = None,
-        level: Optional[str] = None
-    ):
-        """Armazena um valor no cache."""
-        if level:
-            await self._set_in_level(key, value, level, ttl)
-        else:
-            # Armazena em todos os níveis
-            for level_name in ["ram", "vram", "redis"]:
-                with CACHE_LATENCY.labels(operation="set", level=level_name).time():
-                    await self._set_in_level(key, value, level_name, ttl)
-    
-    async def delete(self, key: str, level: Optional[str] = None):
-        """Remove um valor do cache."""
-        if level:
-            await self._delete_from_level(key, level)
-        else:
-            # Remove de todos os níveis
-            for level_name in ["ram", "vram", "redis"]:
-                with CACHE_LATENCY.labels(operation="delete", level=level_name).time():
-                    await self._delete_from_level(key, level_name)
-    
-    async def exists(self, key: str, level: Optional[str] = None) -> bool:
-        """Verifica se uma chave existe no cache."""
-        if level:
-            return await self._exists_in_level(key, level)
-        
-        # Verifica em todos os níveis
-        for level_name in ["ram", "vram", "redis"]:
-            if await self._exists_in_level(key, level_name):
-                return True
-        
-        return False
-    
-    async def _get_from_level(self, key: str, level: str) -> Optional[Any]:
-        """Busca um valor em um nível específico."""
-        try:
-            return await self.levels[level].get(key)
-        except Exception as e:
-            self.logger.error(f"Erro ao buscar do cache {level}: {e}")
-            return None
-    
-    async def _set_in_level(
-        self,
-        key: str,
-        value: Any,
-        level: str,
-        ttl: Optional[int] = None
-    ):
-        """Armazena um valor em um nível específico."""
-        try:
-            await self.levels[level].set(key, value, ttl)
-        except Exception as e:
-            self.logger.error(f"Erro ao armazenar no cache {level}: {e}")
-    
-    async def _delete_from_level(self, key: str, level: str):
-        """Remove um valor de um nível específico."""
-        try:
-            await self.levels[level].delete(key)
-        except Exception as e:
-            self.logger.error(f"Erro ao remover do cache {level}: {e}")
-    
-    async def _exists_in_level(self, key: str, level: str) -> bool:
-        """Verifica se uma chave existe em um nível específico."""
-        try:
-            return await self.levels[level].exists(key)
-        except Exception as e:
-            self.logger.error(f"Erro ao verificar existência no cache {level}: {e}")
-            return False
+        if namespace not in self.caches:
+            self.caches[namespace] = Cache(self, namespace)
+        return self.caches[namespace]
 
-
-class NamespacedCache:
+class Cache:
     """Interface de cache com namespace."""
     
     def __init__(self, manager: CacheManager, namespace: str):
         self.manager = manager
         self.namespace = namespace
-    
-    def _get_namespaced_key(self, key: str) -> str:
-        """Gera uma chave com namespace."""
+        
+    def _make_key(self, key: str) -> str:
         return f"{self.namespace}:{key}"
-    
-    async def get(self, key: str, level: Optional[str] = None) -> Optional[Any]:
-        return await self.manager.get(
-            self._get_namespaced_key(key),
-            level
-        )
-    
-    async def set(
-        self,
-        key: str,
-        value: Any,
-        ttl: Optional[int] = None,
-        level: Optional[str] = None
-    ):
-        await self.manager.set(
-            self._get_namespaced_key(key),
-            value,
-            ttl,
-            level
-        )
-    
-    async def delete(self, key: str, level: Optional[str] = None):
-        await self.manager.delete(
-            self._get_namespaced_key(key),
-            level
-        )
-    
-    async def exists(self, key: str, level: Optional[str] = None) -> bool:
-        return await self.manager.exists(
-            self._get_namespaced_key(key),
-            level
-        )
+        
+    async def get(self, key: str) -> Optional[Any]:
+        key = self._make_key(key)
+        
+        # Tenta cada nível em ordem
+        for level_name, cache in self.manager.levels.items():
+            with CACHE_LATENCY.labels(operation="get", level=level_name).time():
+                value = await cache.get(key)
+                if value is not None:
+                    CACHE_HITS.labels(level=level_name).inc()
+                    return value
+                CACHE_MISSES.labels(level=level_name).inc()
+        return None
+        
+    async def set(self, key: str, value: Any, expire: Optional[int] = None):
+        key = self._make_key(key)
+        
+        # Armazena em todos os níveis
+        for level_name, cache in self.manager.levels.items():
+            with CACHE_LATENCY.labels(operation="set", level=level_name).time():
+                await cache.set(key, value, expire)
+                
+    async def delete(self, key: str):
+        key = self._make_key(key)
+        
+        # Remove de todos os níveis
+        for level_name, cache in self.manager.levels.items():
+            with CACHE_LATENCY.labels(operation="delete", level=level_name).time():
+                await cache.delete(key)
 
-
-# Instância global do gerenciador
-cache_manager = CacheManager() 
+# Instância global
+cache_manager = CacheManager()

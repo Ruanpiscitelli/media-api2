@@ -1,5 +1,5 @@
 """
-Modelo Bark do Suno AI para geração de voz cantada.
+Modelo Bark para geração de voz.
 """
 
 import torch
@@ -40,7 +40,7 @@ class BarkVoiceModel:
                     self.voice_presets = json.load(f)
         except Exception as e:
             logger.error(f"Erro carregando presets: {e}")
-            
+        
     async def load(self):
         """Carrega o modelo e processador."""
         try:
@@ -149,41 +149,3 @@ class BarkVoiceModel:
         except Exception as e:
             logger.error(f"Erro gerando voz: {e}")
             raise
-            
-    def _process_melody(self, melody: str) -> torch.Tensor:
-        """
-        Processa melodia em MIDI/MusicXML.
-        
-        Args:
-            melody: Caminho do arquivo de melodia
-            
-        Returns:
-            Tensor com melodia processada
-        """
-        try:
-            # TODO: Implementar processamento de MIDI/MusicXML
-            # Por enquanto retorna tensor vazio
-            return torch.tensor([])
-            
-        except Exception as e:
-            logger.error(f"Erro processando melodia: {e}")
-            raise
-            
-    def _apply_pitch_correction(self, audio: torch.Tensor) -> torch.Tensor:
-        """
-        Aplica correção de pitch no áudio.
-        
-        Args:
-            audio: Tensor com áudio
-            
-        Returns:
-            Tensor com áudio corrigido
-        """
-        try:
-            # TODO: Implementar correção de pitch
-            # Por enquanto retorna áudio original
-            return audio
-            
-        except Exception as e:
-            logger.error(f"Erro aplicando correção de pitch: {e}")
-            raise 

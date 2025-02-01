@@ -51,16 +51,29 @@ sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/I
 sed -i 's/rights="none" pattern="VIDEO"/rights="read|write" pattern="VIDEO"/' /etc/ImageMagick-6/policy.xml || true
 
 echo -e "${BLUE}2. Configurando diretórios...${NC}"
+
+# Criar grupo para a aplicação
+groupadd -f mediaapi
+
+# Adicionar usuário atual ao grupo
+usermod -a -G mediaapi $(whoami)
+
 mkdir -p $WORKSPACE/{logs,media,cache,models,config,temp} \
         $WORKSPACE/models/{lora,checkpoints,vae} \
-        $WORKSPACE/media/{audio,images,video}
+        $WORKSPACE/media/{audio,images,video} \
+        $WORKSPACE/temp \
+        $WORKSPACE/outputs/suno \
+        $WORKSPACE/cache/suno
+
+# Definir propriedade dos diretórios
+chown -R $(whoami):mediaapi $WORKSPACE/{temp,outputs,cache,logs,media,models,config}
 
 # Criar estrutura completa do projeto
 echo "Criando estrutura de diretórios..."
 mkdir -p $API_DIR/src/{api/{v1,v2},core,services,web,utils}
-mkdir -p $API_DIR/src/api/v2/endpoints
-mkdir -p $API_DIR/src/api/v2/schemas
-mkdir -p $API_DIR/src/services
+mkdir -p $API_DIR/src/core/cache
+mkdir -p $API_DIR/src/generation/suno
+mkdir -p $API_DIR/src/utils
 
 # Criar __init__.py em todos os diretórios Python
 find $API_DIR/src -type d -exec touch {}/__init__.py \;
@@ -130,7 +143,13 @@ python3 -m venv $WORKSPACE/venv_clean
 . $WORKSPACE/venv_clean/bin/activate
 
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
-pip install --upgrade pip wheel setuptools
+pip install --upgrade pip wheel setuptools || { echo "❌ Falha na instalação de pip"; exit 1; }
+
+# Adicionar após cada bloco de instalação:
+if [ $? -ne 0 ]; then
+    echo "❌ Falha na instalação de dependências"
+    exit 1
+fi
 
 # Instalar dependências críticas primeiro
 pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
@@ -266,7 +285,7 @@ curl -X POST http://localhost:$API_PORT/api/v1/auth/register \
     \"password\": \"$DEFAULT_PASS\",
     \"email\": \"$DEFAULT_EMAIL\",
     \"role\": \"admin\"
-  }"
+  }" || { echo "❌ Falha ao criar usuário"; exit 1; }
 
 # Obter e salvar token
 TOKEN=$(curl -s -X POST http://localhost:$API_PORT/api/v1/auth/login \
@@ -444,4 +463,36 @@ async def rate_limiter(request: Request):
             status_code=500,
             detail="Internal server error"
         )
-EOF 
+EOF
+
+# Criar arquivo de gerenciamento de GPU
+touch $API_DIR/src/core/gpu_manager.py
+
+# Criar arquivos necessários
+touch $API_DIR/src/core/queue_manager.py
+touch $API_DIR/src/services/suno.py
+touch $API_DIR/src/core/cache/manager.py
+touch $API_DIR/src/utils/audio.py
+touch $API_DIR/src/generation/suno/{bark_voice,musicgen}.py
+
+# Substituir a chave fixa por uma gerada automaticamente
+JWT_SECRET=$(openssl rand -hex 32)
+sed -i "s/JWT_SECRET_KEY=your-secret-key-here/JWT_SECRET_KEY=$JWT_SECRET/" $WORKSPACE/.env
+
+# Criar arquivo main.py básico se não existir
+if [ ! -f "$API_DIR/src/main.py" ]; then
+    cat > $API_DIR/src/main.py << 'EOF'
+"""
+Ponto de entrada principal da aplicação FastAPI
+"""
+from fastapi import FastAPI
+from src.core.rate_limit import rate_limiter
+
+app = FastAPI()
+app.add_middleware(rate_limiter)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+EOF
+fi

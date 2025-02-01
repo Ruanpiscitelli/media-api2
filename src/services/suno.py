@@ -7,7 +7,7 @@ import asyncio
 import logging
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import torch
 import torchaudio
 import uuid
@@ -17,6 +17,7 @@ from pathlib import Path
 from src.core.config import settings
 from src.core.cache.manager import cache_manager
 from src.core.gpu_manager import gpu_manager
+from src.core.queue_manager import queue_manager
 from src.utils.audio import AudioProcessor
 from src.generation.suno.bark_voice import BarkVoiceModel
 from src.generation.suno.musicgen import MusicGenModel
@@ -445,4 +446,63 @@ class SunoService:
         # Cachear
         await self.cache.set("instruments", instruments, expire=3600)
         
-        return instruments 
+        return instruments
+
+    async def generate_music(self, params: Dict[str, Any]) -> str:
+        """
+        Gera música com os parâmetros especificados.
+        Retorna ID da tarefa.
+        """
+        task = await self.start_music_generation(
+            prompt=params.get('prompt'),
+            duration=params.get('duration', 30),
+            style=params.get('style'),
+            tempo=params.get('tempo'),
+            key=params.get('key'),
+            instruments=params.get('instruments'),
+            reference_audio=params.get('reference_audio'),
+            options=params.get('options'),
+            user_id=params.get('user_id')
+        )
+        
+        # Iniciar processamento em background
+        asyncio.create_task(self.process_music_generation(task['task_id']))
+        
+        return task['task_id']
+        
+    async def generate_voice(self, params: Dict[str, Any]) -> str:
+        """
+        Gera voz cantada com os parâmetros especificados.
+        Retorna ID da tarefa.
+        """
+        task = await self.start_voice_generation(
+            text=params['text'],
+            melody=params.get('melody'),
+            voice_id=params['voice_id'],
+            style=params.get('style'),
+            emotion=params.get('emotion', 'neutral'),
+            pitch_correction=params.get('pitch_correction', True),
+            formant_shift=params.get('formant_shift', 0.0),
+            user_id=params.get('user_id')
+        )
+        
+        # Iniciar processamento em background
+        asyncio.create_task(self.process_voice_generation(task['task_id']))
+        
+        return task['task_id']
+        
+    async def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Obtém status de uma tarefa"""
+        return await self.get_task_status(task_id)
+        
+    async def list_voices(self, style: Optional[str] = None, language: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lista vozes disponíveis"""
+        return await self.list_voices(style=style, language=language)
+        
+    async def list_styles(self) -> List[str]:
+        """Lista estilos musicais suportados"""
+        return await self.list_styles()
+        
+    async def list_instruments(self) -> List[str]:
+        """Lista instrumentos suportados"""
+        return await self.list_instruments()
