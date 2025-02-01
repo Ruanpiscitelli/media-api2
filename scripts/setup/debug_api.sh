@@ -40,6 +40,8 @@ try:
     import gradio as gr
     from colorama import init
     from slugify import slugify
+    from pydantic_settings import BaseSettings
+    from src.comfy.config import ComfyConfig
     print('✅ Importação do app bem sucedida')
 except Exception as e:
     print(f'❌ Erro ao importar: {e}')
