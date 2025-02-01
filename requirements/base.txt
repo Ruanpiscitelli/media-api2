@@ -78,7 +78,7 @@ aiofiles>=23.2.1
 
 # Gerenciamento de versões e compatibilidade
 semver>=3.0.0
-folder-paths>=0.1.0
+pathlib>=1.0.1
 
 # Dependências de desenvolvimento
 pytest>=7.4.2
