@@ -21,8 +21,8 @@ class BaseError(Exception):
         self.message = message
         super().__init__(self.message)
 
-class APIError(BaseError):
-    """Classe base para erros da API"""
+class APIError(Exception):
+    """Erro base para exceções da API"""
     def __init__(
         self,
         message: str,
@@ -30,12 +30,21 @@ class APIError(BaseError):
         error_code: str = "internal_error",
         details: Optional[Dict[str, Any]] = None
     ):
+        super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.error_code = error_code
         self.details = details or {}
         ERROR_COUNTS.labels(error_code).inc()
-        super().__init__(message)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte erro para dicionário"""
+        return {
+            "error": self.error_code,
+            "message": self.message,
+            "details": self.details,
+            "status_code": self.status_code
+        }
 
 # Erros de Autenticação
 class AuthenticationError(APIError):
