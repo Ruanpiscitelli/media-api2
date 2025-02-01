@@ -1,6 +1,8 @@
 """
 Sistema de monitoramento centralizado
 """
+from prometheus_client import start_http_server
+import logging
 from .metrics import (
     CACHE_METRICS,
     GPU_METRICS,
@@ -8,11 +10,41 @@ from .metrics import (
     TASK_METRICS
 )
 
+logger = logging.getLogger(__name__)
+
+# Exporta métricas para uso em outros módulos
+REQUESTS = HTTP_METRICS['requests']
+ERRORS = HTTP_METRICS['errors']
+REQUEST_LATENCY = HTTP_METRICS['latency']
+
+def setup_monitoring(port: int = 8001):
+    """
+    Inicia servidor de métricas Prometheus
+    
+    Args:
+        port: Porta para expor métricas (default: 8001)
+    """
+    try:
+        start_http_server(port)
+        logger.info(f"✅ Servidor de métricas iniciado na porta {port}")
+    except OSError as e:
+        if "Address already in use" in str(e):
+            logger.warning(f"Porta {port} já em uso, tentando próxima...")
+            setup_monitoring(port + 1)
+        else:
+            logger.error(f"❌ Erro ao iniciar métricas: {e}")
+    except Exception as e:
+        logger.error(f"❌ Erro ao iniciar métricas: {e}")
+
 __all__ = [
     'CACHE_METRICS',
     'GPU_METRICS',
     'HTTP_METRICS',
-    'TASK_METRICS'
+    'TASK_METRICS',
+    'REQUESTS',
+    'ERRORS',
+    'REQUEST_LATENCY',
+    'setup_monitoring'
 ]
 
 """

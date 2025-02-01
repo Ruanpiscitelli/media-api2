@@ -6,17 +6,17 @@ from prometheus_client import Counter, Histogram, Gauge
 # Cache Metrics
 CACHE_METRICS = {
     'hits': Counter(
-        'cache_hits',  # Removido _total para evitar duplicação
+        'api_cache_hits',
         'Total de cache hits',
         ['namespace']
     ),
     'misses': Counter(
-        'cache_misses',
+        'api_cache_misses',
         'Total de cache misses',
         ['namespace']
     ),
     'latency': Histogram(
-        'cache_operation_duration_seconds',
+        'api_cache_operation_seconds',
         'Latência das operações de cache',
         ['operation']
     )
@@ -25,27 +25,27 @@ CACHE_METRICS = {
 # GPU Metrics
 GPU_METRICS = {
     'memory': Gauge(
-        'gpu_memory_bytes',
+        'api_gpu_memory_bytes',
         'Uso de memória GPU em bytes',
         ['device']
     ),
     'utilization': Gauge(
-        'gpu_utilization_percent',
+        'api_gpu_utilization',
         'Utilização da GPU em porcentagem',
         ['device']
     ),
     'temperature': Gauge(
-        'gpu_temperature_celsius',
+        'api_gpu_temperature',
         'Temperatura da GPU em Celsius',
         ['device']
     ),
     'power': Gauge(
-        'gpu_power_watts',
+        'api_gpu_power_watts',
         'Consumo de energia da GPU em watts',
         ['device']
     ),
     'errors': Counter(
-        'gpu_errors',
+        'api_gpu_errors',
         'Erros da GPU',
         ['device', 'type']
     )
@@ -54,17 +54,17 @@ GPU_METRICS = {
 # HTTP Metrics
 HTTP_METRICS = {
     'requests': Counter(
-        'http_requests',
+        'api_http_requests',
         'Total de requisições HTTP',
         ['method', 'endpoint', 'status']
     ),
     'latency': Histogram(
-        'http_request_duration_seconds',
+        'api_http_duration_seconds',
         'Latência das requisições HTTP',
         ['method', 'endpoint']
     ),
     'errors': Counter(
-        'http_errors',
+        'api_http_errors',
         'Total de erros HTTP',
         ['method', 'endpoint', 'error']
     )
@@ -73,20 +73,20 @@ HTTP_METRICS = {
 # Task Metrics
 TASK_METRICS = {
     'queued': Gauge(
-        'tasks_queued',
+        'api_tasks_queued',
         'Tarefas na fila'
     ),
     'processing': Gauge(
-        'tasks_processing',
+        'api_tasks_processing',
         'Tarefas em processamento'
     ),
     'completed': Counter(
-        'tasks_completed',
+        'api_tasks_completed',
         'Total de tarefas completadas',
         ['status']
     ),
     'duration': Histogram(
-        'task_duration_seconds',
+        'api_task_duration_seconds',
         'Duração das tarefas',
         ['type']
     )
