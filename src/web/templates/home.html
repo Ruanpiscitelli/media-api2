@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Media API Documentation</h1>
+        <p class="lead">API avançada para geração de mídia com suporte a processamento distribuído em múltiplas GPUs.</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🔑 Autenticação</h5>
+                <p class="card-text">Login, registro e gerenciamento de tokens</p>
+                <a href="/auth" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🎨 ComfyUI</h5>
+                <p class="card-text">Execução e gerenciamento de workflows</p>
+                <a href="/endpoints/comfy" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🖼️ Geração de Imagem</h5>
+                <p class="card-text">Geração e manipulação de imagens</p>
+                <a href="/endpoints/image" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🎥 Geração de Vídeo</h5>
+                <p class="card-text">Geração e processamento de vídeos</p>
+                <a href="/endpoints/video" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🗣️ Síntese de Voz</h5>
+                <p class="card-text">Geração de áudio e síntese de voz</p>
+                <a href="/endpoints/speech" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🔧 Sistema</h5>
+                <p class="card-text">Monitoramento e gerenciamento</p>
+                <a href="/endpoints/system" class="btn btn-primary">Ver Endpoints</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

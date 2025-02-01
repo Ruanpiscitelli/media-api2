@@ -1,0 +1,61 @@
+.endpoint-card {
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
+.endpoint-header {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.endpoint-method {
+    font-weight: bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-right: 0.5rem;
+}
+
+.method-post { background-color: #28a745; color: white; }
+.method-get { background-color: #007bff; color: white; }
+.method-put { background-color: #ffc107; color: black; }
+.method-delete { background-color: #dc3545; color: white; }
+
+.endpoint-body {
+    padding: 1rem;
+}
+
+.curl-example {
+    background-color: #282c34;
+    color: #abb2bf;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    white-space: pre-wrap;
+    margin: 1rem 0;
+}
+
+.copy-button {
+    float: right;
+    background-color: transparent;
+    border: 1px solid #ced4da;
+    color: #6c757d;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+}
+
+.token-section {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0.25rem;
+}
+
+.response-preview {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+} 

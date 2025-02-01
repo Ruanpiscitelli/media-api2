@@ -598,6 +598,10 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Request {request_id} failed: {str(e)}")
         raise
 
+# Incluir rotas da GUI
+from src.web.routes import router as web_router
+app.include_router(web_router)
+
 if __name__ == "__main__":
     # Configuração para debugging
     import uvicorn

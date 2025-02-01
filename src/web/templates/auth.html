@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="token-section">
+    <h3>Gerar Token de Acesso</h3>
+    <div class="mb-3">
+        <input type="text" id="username" class="form-control mb-2" placeholder="Usuário">
+        <input type="password" id="password" class="form-control mb-2" placeholder="Senha">
+        <button class="btn btn-primary" onclick="generateToken()">Gerar Token</button>
+    </div>
+    <div id="tokenResponse" class="response-preview" style="display: none;"></div>
+</div>
+
+<div class="endpoint-card">
+    <div class="endpoint-header">
+        <span class="endpoint-method method-post">POST</span>
+        <span>/api/v1/auth/login</span>
+        <button class="copy-button" onclick="copyToClipboard('loginCurl')">Copiar</button>
+    </div>
+    <div class="endpoint-body">
+        <h5>Login e Obtenção de Token</h5>
+        <p>Autentica o usuário e retorna um token de acesso.</p>
+        
+        <h6>Exemplo de Requisição:</h6>
+        <div id="loginCurl" class="curl-example">
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "seu_usuario",
+    "password": "sua_senha"
+  }'
+        </div>
+        
+        <h6>Resposta:</h6>
+        <div class="response-preview">
+{
+    "access_token": "eyJ0eXAiOiJKV1...",
+    "token_type": "bearer"
+}
+        </div>
+    </div>
+</div>
+
+<script>
+async function generateToken() {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        const tokenResponse = document.getElementById('tokenResponse');
+        tokenResponse.style.display = 'block';
+        tokenResponse.textContent = JSON.stringify(data, null, 2);
+        
+        if (data.access_token) {
+            document.getElementById('bearerToken').value = data.access_token;
+            localStorage.setItem('bearerToken', data.access_token);
+        }
+    } catch (error) {
+        alert('Erro ao gerar token: ' + error.message);
+    }
+}
+</script>
+{% endblock %} 

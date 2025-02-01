@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="endpoint-section">
+    <h2>{{ section_title }}</h2>
+    <p>{{ section_description }}</p>
+
+    {% for endpoint in endpoints %}
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="endpoint-method method-{{ endpoint.method|lower }}">{{ endpoint.method }}</span>
+            <span>{{ endpoint.path }}</span>
+            <button class="copy-button" onclick="copyToClipboard('curl_{{ loop.index }}')">Copiar</button>
+        </div>
+        <div class="endpoint-body">
+            <h5>{{ endpoint.title }}</h5>
+            <p>{{ endpoint.description }}</p>
+            
+            <h6>Exemplo de Requisição:</h6>
+            <div id="curl_{{ loop.index }}" class="curl-example">{{ endpoint.curl_example }}</div>
+            
+            {% if endpoint.request_body %}
+            <h6>Corpo da Requisição:</h6>
+            <div class="response-preview">{{ endpoint.request_body }}</div>
+            {% endif %}
+            
+            <h6>Resposta:</h6>
+            <div class="response-preview">{{ endpoint.response_example }}</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+// Função para testar endpoint
+async function testEndpoint(method, path, body) {
+    const token = localStorage.getItem('bearerToken');
+    try {
+        const response = await fetch(path, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        
+        const data = await response.json();
+        alert('Resposta: ' + JSON.stringify(data, null, 2));
+    } catch (error) {
+        alert('Erro: ' + error.message);
+    }
+}
+</script>
+{% endblock %} 

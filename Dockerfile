@@ -1,5 +1,5 @@
 # Base image do RunPod
-FROM --platform=linux/amd64 runpod/stable-diffusion:web-ui-13.0.0
+FROM runpod/stable-diffusion:web-ui-13.0.0
 
 # Instalar dependências adicionais
 RUN apt-get update && apt-get install -y \
@@ -9,18 +9,21 @@ RUN apt-get update && apt-get install -y \
     git-lfs \
     nodejs \
     npm \
+    git \
+    python3-pip \
+    python3-dev \
+    pkg-config \
+    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Configurar diretórios
 WORKDIR /workspace
 
-# Clonar repositórios
-RUN git clone https://github.com/Ruanpiscitelli/media-api2.git && \
-    git clone https://github.com/comfyanonymous/ComfyUI.git
+# Copiar seu projeto
+COPY . /workspace/media-api2/
 
-# Criar requirements
-RUN mkdir -p /workspace/media-api2/requirements
-COPY requirements/vast.txt /workspace/media-api2/requirements/
+# Clonar ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git
 
 # Configurar ComfyUI
 WORKDIR /workspace/ComfyUI
@@ -35,14 +38,10 @@ RUN mkdir -p custom_nodes && \
 # Criar diretórios de modelos (vazios)
 RUN mkdir -p models/{checkpoints,clip,clip_vision,controlnet,ipadapter,loras,upscale_models,vae}
 
-# Usar o ambiente Python existente do RunPod
-ENV PATH="/opt/conda/bin:$PATH"
-
 # Instalar dependências Python
 WORKDIR /workspace/media-api2
 RUN pip install -r requirements/vast.txt
 
-# Instalar dependências do ComfyUI
 WORKDIR /workspace/ComfyUI
 RUN pip install -r requirements.txt || true && \
     for req in custom_nodes/*/requirements.txt; do \
@@ -52,24 +51,18 @@ RUN pip install -r requirements.txt || true && \
         fi \
     done
 
-# Configurar frontend
-WORKDIR /workspace/media-api2/frontend
-
-# Instalar dependências do Node.js e build
-RUN npm install -g npm@latest && \
-    npm install && \
-    npm run build
-
 # Criar diretório para logs
 RUN mkdir -p /workspace/logs
 
-# Copiar scripts
-COPY scripts/startup.sh /workspace/
-COPY scripts/download_models.sh /workspace/
-RUN chmod +x /workspace/startup.sh /workspace/download_models.sh
+# Script de inicialização simples
+RUN echo '#!/bin/sh\n\
+redis-server --daemonize yes\n\
+cd /workspace/ComfyUI && python main.py --listen 0.0.0.0 --port 8188 --enable-cors-header > /workspace/logs/comfyui.log 2>&1 &\n\
+cd /workspace/media-api2 && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4 > /workspace/logs/api.log 2>&1 &\n\
+tail -f /workspace/logs/*.log' > /workspace/start.sh && chmod +x /workspace/start.sh
 
 # Expor portas
 EXPOSE 8000 8188 6379
 
-# Iniciar serviços
-CMD ["/workspace/startup.sh"] 
+# Comando de inicialização
+CMD ["/workspace/start.sh"]

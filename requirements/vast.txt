@@ -19,4 +19,17 @@ ffmpeg-python>=0.2.0
 
 # UI
 python-dotenv>=1.0.0
-aiofiles>=23.2.1 
+aiofiles>=23.2.1
+
+# CUDA e GPU
+nvidia-cuda-runtime-cu12
+nvidia-cuda-nvrtc-cu12
+cuda-python
+
+# Monitoramento GPU
+gputil>=1.4.0
+py3nvml>=0.2.7
+
+# Otimização
+onnxruntime-gpu>=1.15.0
+triton>=2.0.0 
