@@ -31,11 +31,45 @@ check_port 9090  # Prometheus
 check_port 8000  # API
 check_port 6379  # Redis
 
+# Função para verificar requisitos
+check_requirements() {
+    echo "Verificando requisitos do sistema..."
+    
+    # Verificar versão do Python
+    python_version=$(python3 --version 2>&1 | awk '{print $2}')
+    echo "Versão do Python: $python_version"
+    if [[ $(echo "$python_version" | cut -d. -f1,2) < "3.10" ]]; then
+        echo "Erro: Python 3.10 ou superior é necessário"
+        exit 1
+    fi
+    
+    # Verificar CUDA
+    if ! command -v nvcc &> /dev/null; then
+        echo "Erro: CUDA não encontrado"
+        exit 1
+    fi
+    echo "CUDA encontrado: $(nvcc --version | head -n1)"
+    
+    # Verificar GPUs disponíveis
+    gpu_count=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | wc -l)
+    echo "GPUs encontradas: $gpu_count"
+    if [ "$gpu_count" -eq 0 ]; then
+        echo "Erro: Nenhuma GPU encontrada"
+        exit 1
+    fi
+}
+
+# Adicionar antes da instalação das dependências
+check_requirements
+
 # 1. Configuração inicial do sistema
 apt-get update && apt-get install -y \
     git python3-pip python3-venv redis-server net-tools ffmpeg \
     nvidia-cuda-toolkit nvidia-cuda-toolkit-gcc \
-    pkg-config libicu-dev python3-dev wget curl
+    pkg-config libicu-dev python3-dev wget curl \
+    prometheus-node-exporter \
+    prometheus-redis-exporter \
+    nvidia-dcgm-exporter
 
 # 2. Criar estrutura de diretórios
 mkdir -p /workspace/{logs,media,cache,models,config,temp} \
@@ -52,6 +86,33 @@ daemonize yes
 supervised systemd
 dir /var/lib/redis
 pidfile /var/run/redis/redis-server.pid
+
+# Configurações de métricas
+latency-tracking yes
+latency-monitoring-threshold 25
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Configurações de performance
+maxclients 10000
+timeout 0
+tcp-keepalive 300
+databases 16
+
+# Configurações de persistência
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+
+# Configurações de logging
+loglevel notice
+logfile /var/log/redis/redis-server.log
+syslog-enabled yes
+syslog-ident redis
+syslog-facility local0
 EOF
 
 # Garantir que diretórios existam e permissões estejam corretas
@@ -90,11 +151,11 @@ for i in {1..30}; do
 done
 
 # 4. Configurar ambiente Python
-python3 -m venv /workspace/venv_clean
+python3 -m venv /workspace/venv_clean --clear  # --clear para garantir ambiente limpo
 source /workspace/venv_clean/bin/activate
 
 # 5. Instalar dependências Python
-pip install --upgrade pip wheel setuptools
+python -m pip install --no-cache-dir -U pip setuptools wheel
 
 # Instalar uvicorn primeiro
 pip install "uvicorn[standard]>=0.23.0"
@@ -116,11 +177,24 @@ cd prometheus-*/
 cat > prometheus.yml << EOF
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
   - job_name: 'media-api'
     static_configs:
       - targets: ['localhost:8000']
+    
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['localhost:9121']
+    
+  - job_name: 'nvidia-gpu'
+    static_configs:
+      - targets: ['localhost:9835']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
 EOF
 
 nohup ./prometheus --config.file=prometheus.yml --web.listen-address=:9090 > /workspace/logs/prometheus.log 2>&1 &
@@ -190,26 +264,70 @@ cd /workspace/media-api2
 if [ ! -f .env ]; then
     echo "Criando arquivo .env..."
     cat > .env << EOF
-DEBUG=true
-ENVIRONMENT=development
-SECRET_KEY=your-secret-key-here
+# Ambiente
+ENV=production
+DEBUG=false
+ENVIRONMENT=production
+
+# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_PASSWORD=development_password
 REDIS_DB=0
+REDIS_PASSWORD=
+REDIS_SSL=false
+REDIS_TIMEOUT=5
+REDIS_MAX_CONNECTIONS=10
+
+# Rate Limiting
+RATE_LIMIT_DEFAULT=100
+RATE_LIMIT_BURST=10
+RATE_LIMIT_STRATEGY=fixed-window
+
+# Servidor
+HOST=0.0.0.0
+PORT=8000
+WORKERS=4
+REQUEST_TIMEOUT=300
+
+# Segurança
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 BACKEND_CORS_ORIGINS='["*"]'
-LOG_LEVEL=debug
+
+# Logging
+LOG_LEVEL=info
+JSON_LOGS=true
+
+# API
 PROJECT_NAME="Media API"
 VERSION="2.0.0"
 API_V2_STR="/api/v2"
+
+# Database
 DATABASE_URL="sqlite:///./sql_app.db"
-ALGORITHM="HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REDIS_TIMEOUT=5
-REDIS_SSL=false
-RATE_LIMIT_PER_MINUTE=60
+
+# Cache
+CACHE_TTL=3600
+CACHE_MAX_SIZE=10000
+
+# GPU
+GPU_DEVICES=0,1,2,3
+GPU_TEMP_LIMIT=85
+GPU_UTIL_THRESHOLD=95
+GPU_MEMORY_HEADROOM=1024
+
+# Monitoramento
+ENABLE_PROMETHEUS=true
+PROMETHEUS_PORT=9090
+ENABLE_GRAFANA=true
+GRAFANA_PORT=3000
+
+# Recursos
 MEMORY_THRESHOLD_MB=8192
 TEMP_FILE_MAX_AGE=3600
+
+# ComfyUI
 COMFY_API_URL="http://localhost:8188/api"
 COMFY_WS_URL="ws://localhost:8188/ws"
 COMFY_TIMEOUT=30
@@ -256,70 +374,74 @@ echo "Diretório atual: $(pwd)"
 echo "Conteúdo do diretório src:"
 ls -la src/
 
-echo "Iniciando API com uvicorn..."
+echo "Iniciando API com configurações otimizadas..."
 if python -m uvicorn src.main:app \
     --host 0.0.0.0 \
     --port 8000 \
-    --workers 1 \
-    --log-level debug \
-    --reload > /workspace/logs/api.log 2>&1 &
+    --workers $((2 * $(nproc))) \  # 2 workers por CPU
+    --loop uvloop \
+    --http httptools \
+    --log-level info \
+    --proxy-headers \
+    --forwarded-allow-ips='*' \
+    --timeout-keep-alive 75 \
+    --backlog 2048 \
+    --limit-concurrency 1000 \
+    --no-access-log \
+    > /workspace/logs/api.log 2>&1 &
 then
     API_PID=$!
-    echo "API iniciada com python -m uvicorn"
-elif $VIRTUAL_ENV/bin/uvicorn src.main:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --workers 1 \
-    --log-level debug \
-    --reload > /workspace/logs/api.log 2>&1 &
-then
-    API_PID=$!
-    echo "API iniciada com caminho completo do uvicorn"
+    echo "API iniciada com sucesso (PID: $API_PID)"
 else
-    echo "Falha ao iniciar API. Tentando instalar uvicorn novamente..."
-    pip uninstall -y uvicorn
-    pip install --no-cache-dir "uvicorn[standard]>=0.23.0"
-    python -m uvicorn src.main:app \
-        --host 0.0.0.0 \
-        --port 8000 \
-        --workers 1 \
-        --log-level debug \
-        --reload > /workspace/logs/api.log 2>&1 &
-    API_PID=$!
+    echo "Erro ao iniciar API. Verificando logs:"
+    tail -n 50 /workspace/logs/api.log
+    exit 1
 fi
 
-# Verificar se API iniciou
-echo "Aguardando API iniciar..."
-for i in {1..30}; do
-    echo "Tentativa $i de 30..."
-    if curl -s http://localhost:8000/health > /dev/null; then
-        echo "API iniciada com sucesso!"
+# Melhorar verificação de saúde da API
+echo "Verificando saúde da API..."
+max_attempts=30
+attempt=1
+while [ $attempt -le $max_attempts ]; do
+    echo "Tentativa $attempt de $max_attempts..."
+    if curl -s http://localhost:8000/health | grep -q '"status":"healthy"'; then
+        echo "API está saudável!"
         break
-    fi
-    # Verificar logs para diagnóstico
-    if [ $i -eq 15 ]; then
+    elif [ $attempt -eq $((max_attempts/2)) ]; then
         echo "Logs da API até agora:"
-        tail -n 50 /workspace/logs/api.log
-        echo "Tentando reiniciar API..."
-        kill $API_PID 2>/dev/null
-        wait $API_PID 2>/dev/null
-        nohup python -m uvicorn src.main:app \
-            --host 0.0.0.0 \
-            --port 8000 \
-            --workers 1 \
-            --log-level debug \
-            --reload > /workspace/logs/api.log 2>&1 &
-        API_PID=$!
-    fi
-    sleep 1
-    if [ $i -eq 30 ]; then
-        echo "Erro: Timeout aguardando API iniciar. Logs:"
         tail -n 100 /workspace/logs/api.log
-        echo "Status do processo:"
-        ps aux | grep uvicorn
-        exit 1
     fi
+    attempt=$((attempt+1))
+    sleep 2
 done
+
+if [ $attempt -gt $max_attempts ]; then
+    echo "Erro: API não iniciou corretamente. Logs finais:"
+    tail -n 200 /workspace/logs/api.log
+    exit 1
+fi
+
+# Adicionar monitoramento de recursos
+while true; do
+    # Monitorar uso de CPU
+    cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}')
+    echo "Uso de CPU: $cpu_usage%"
+    
+    # Monitorar memória
+    free -h
+    
+    # Monitorar GPUs
+    nvidia-smi --query-gpu=utilization.gpu,memory.used,temperature.gpu --format=csv,noheader
+    
+    # Verificar processos
+    ps aux | grep -E "uvicorn|redis|prometheus|grafana"
+    
+    sleep 60
+done &
+MONITOR_PID=$!
+
+# Registrar PID do monitoramento
+echo $MONITOR_PID > /workspace/monitor.pid
 
 echo "Setup concluído! Serviços iniciados:"
 echo "- API: http://localhost:8000"
