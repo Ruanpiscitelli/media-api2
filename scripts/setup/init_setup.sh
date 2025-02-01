@@ -135,9 +135,12 @@ maxmemory 8gb
 maxmemory-policy allkeys-lru
 EOF
 
+# Criar arquivo .env se não existir
+touch $WORKSPACE/.env
+
 # Gerar senha segura para Redis
 REDIS_PASSWORD=$(openssl rand -hex 32)
-sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=$REDIS_PASSWORD/" $WORKSPACE/.env
+echo "REDIS_PASSWORD=$REDIS_PASSWORD" >> $WORKSPACE/.env
 
 # Atualizar configuração do Redis
 sed -i '/requirepass/d' /etc/redis/redis.conf
