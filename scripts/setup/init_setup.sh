@@ -299,4 +299,36 @@ EOF
 # Carregar variáveis
 set -a
 source $WORKSPACE/.env
-set +a 
+set +a
+
+# Criar estrutura básica de autenticação
+cat > $API_DIR/src/services/auth.py << 'EOF'
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from typing import Optional
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Função que será importada por outros módulos
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        # Implementação básica
+        return {"sub": "user"}  # Placeholder
+    except JWTError:
+        raise credentials_exception
+EOF
+
+# Criar __init__.py nos diretórios necessários
+touch $API_DIR/src/services/__init__.py
+touch $API_DIR/src/api/__init__.py
+touch $API_DIR/src/api/v1/__init__.py
+touch $API_DIR/src/api/v2/__init__.py
+touch $API_DIR/src/api/v1/endpoints/__init__.py
+touch $API_DIR/src/api/v2/endpoints/__init__.py 

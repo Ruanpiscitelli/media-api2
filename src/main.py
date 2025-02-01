@@ -66,6 +66,7 @@ from src.core.config import settings
 from src.services.comfy_server import comfy_server
 from src.comfy.template_manager import TemplateManager
 from src.comfy.default_templates import get_default_templates
+from src.services.auth import get_current_user
 
 # Scheduler global
 scheduler = AsyncIOScheduler()
