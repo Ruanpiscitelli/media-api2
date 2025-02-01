@@ -3,6 +3,16 @@ set -e
 
 echo "Iniciando setup do Media API..."
 
+# Limpar arquivos temporários e downloads anteriores
+cleanup() {
+    echo "Limpando arquivos temporários..."
+    rm -rf /workspace/*.tar.gz
+    rm -rf /workspace/prometheus-*
+    rm -rf /workspace/grafana-*
+    rm -rf /workspace/*.deb
+    rm -rf /workspace/dcgm-*
+}
+
 # Função para verificar requisitos
 check_requirements() {
     echo "Verificando requisitos do sistema..."
@@ -20,7 +30,8 @@ check_requirements() {
     nvidia-smi --query-gpu=gpu_name,memory.total,driver_version --format=csv
 }
 
-# Limpar processos antigos
+# Limpar processos e arquivos antigos
+cleanup
 echo "Limpando processos anteriores..."
 pkill -f uvicorn || true
 redis-cli shutdown || true
@@ -28,11 +39,6 @@ sleep 2
 
 # Verificar requisitos
 check_requirements
-
-# Instalar dependências básicas
-apt-get update && apt-get install -y \
-    redis-server python3-pip python3-venv \
-    nvidia-cuda-toolkit ffmpeg
 
 # Configurar Redis básico
 mkdir -p /var/log/redis
@@ -51,7 +57,7 @@ EOF
 mkdir -p /var/run/redis /var/lib/redis
 chown -R redis:redis /var/run/redis /var/lib/redis /var/log/redis
 
-# Iniciar Redis (sem systemd)
+# Iniciar Redis
 echo "Iniciando Redis..."
 redis-server /etc/redis/redis.conf
 
@@ -67,32 +73,20 @@ while [ $attempt -le $max_attempts ]; do
     echo "Tentativa $attempt de $max_attempts..."
     sleep 1
     attempt=$((attempt+1))
-    
-    if [ $attempt -eq $max_attempts ]; then
-        echo "Erro: Redis não iniciou. Verificando logs:"
-        tail -n 50 /var/log/redis/redis-server.log
-        exit 1
-    fi
 done
 
-# Verificar Redis
-echo "Verificando Redis..."
-redis-cli ping
-
-# Remover ambiente virtual antigo se existir
-rm -rf /workspace/venv_clean
-
 # Configurar ambiente Python
+if [ -d "/workspace/venv_clean" ]; then
+    echo "Removendo ambiente virtual antigo..."
+    rm -rf /workspace/venv_clean
+fi
+
 echo "Criando novo ambiente virtual..."
 python3 -m venv --without-pip /workspace/venv_clean
 source /workspace/venv_clean/bin/activate
 
-# Instalar pip manualmente no ambiente virtual
+# Instalar pip manualmente
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3
-
-# Verificar instalação
-which python3
-which pip
 
 # Instalar dependências Python
 echo "Instalando dependências Python..."
@@ -101,7 +95,7 @@ python3 -m pip install --no-cache-dir "uvicorn[standard]>=0.23.0"
 python3 -m pip install --no-cache-dir -r requirements/vast.txt
 python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Criar diretórios necessários
+# Criar diretórios do projeto
 mkdir -p /workspace/{logs,media,models} \
         /workspace/media/{audio,images,video}
 
