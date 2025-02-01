@@ -132,7 +132,8 @@ echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
 
 # Instalar dependências críticas primeiro
-pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
+pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings \
+    moviepy opencv-python-headless ffmpeg-python Pillow numpy scipy einops pytorch-lightning aiofiles psutil
 
 # Verificar versão do Python
 python --version
@@ -174,6 +175,11 @@ try:
     import redis
     import uvicorn
     import PIL
+    import moviepy.editor
+    import cv2
+    import numpy
+    import einops
+    import pytorch_lightning
     print("✅ Todas as dependências críticas estão instaladas")
 except ImportError as e:
     print(f"❌ Erro ao importar dependências: {e}")
