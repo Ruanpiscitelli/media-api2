@@ -11,6 +11,28 @@ WORKSPACE="/workspace"
 API_DIR="$WORKSPACE/media-api2"
 COMFY_DIR="$WORKSPACE/ComfyUI"
 
+# Detectar portas mapeadas
+get_mapped_port() {
+    local internal_port=$1
+    local mapped_port=$(netstat -tlpn | grep ":$internal_port" | awk '{split($4,a,":"); print a[2]}')
+    if [ -z "$mapped_port" ]; then
+        echo "$internal_port"  # Fallback para porta original
+    else
+        echo "$mapped_port"
+    fi
+}
+
+API_PORT=$(get_mapped_port 8000)
+GUI_PORT=$(get_mapped_port 8080)
+COMFY_PORT=$(get_mapped_port 8188)
+REDIS_PORT=$(get_mapped_port 6379)
+
+echo "Portas detectadas:"
+echo "API: $API_PORT"
+echo "GUI: $GUI_PORT"
+echo "ComfyUI: $COMFY_PORT"
+echo "Redis: $REDIS_PORT"
+
 # Cores para output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -80,13 +102,13 @@ cd $API_DIR
 pkill -f "uvicorn" || true
 
 # Iniciar API com log mais detalhado
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers $(nproc) > $WORKSPACE/logs/api.log 2>&1 &
+nohup uvicorn src.main:app --host 0.0.0.0 --port $API_PORT --workers $(nproc) > $WORKSPACE/logs/api.log 2>&1 &
 
 # Aguardar API iniciar (com timeout)
 echo "Aguardando API iniciar..."
 MAX_TRIES=30
 COUNT=0
-while ! curl -s http://localhost:8000/health > /dev/null && [ $COUNT -lt $MAX_TRIES ]; do
+while ! curl -s http://localhost:$API_PORT/health > /dev/null && [ $COUNT -lt $MAX_TRIES ]; do
     echo "Tentativa $((COUNT+1)) de $MAX_TRIES..."
     sleep 2
     COUNT=$((COUNT+1))
@@ -102,7 +124,7 @@ fi
 echo "API iniciada com sucesso!"
 
 echo -e "${BLUE}7. Criando usuário padrão...${NC}"
-curl -X POST http://localhost:8000/api/v1/auth/register \
+curl -X POST http://localhost:$API_PORT/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d "{
     \"username\": \"$DEFAULT_USER\",
@@ -112,7 +134,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
   }"
 
 # Obter e salvar token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:$API_PORT/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d "{
     \"username\": \"$DEFAULT_USER\",
@@ -125,8 +147,9 @@ echo -e "${GREEN}✅ Setup concluído!${NC}"
 echo -e "Usuário: $DEFAULT_USER"
 echo -e "Senha: $DEFAULT_PASS"
 echo -e "Token salvo em: $WORKSPACE/token.txt"
-echo -e "API rodando em: http://localhost:8000"
-echo -e "GUI em: http://localhost:8080"
+echo -e "API rodando em: http://localhost:$API_PORT"
+echo -e "GUI em: http://localhost:$GUI_PORT"
+echo -e "ComfyUI em: http://localhost:$COMFY_PORT"
 
 # Criar script de reinicialização
 cat > $WORKSPACE/restart.sh << EOF
@@ -134,7 +157,11 @@ cat > $WORKSPACE/restart.sh << EOF
 
 echo "Reiniciando serviços..."
 
-. $WORKSPACE/venv_clean/bin/activate
+# Detectar portas novamente (podem ter mudado)
+API_PORT=\$(netstat -tlpn | grep ":8000" | awk '{split(\$4,a,":"); print a[2]}')
+API_PORT=\${API_PORT:-8000}  # Fallback para 8000 se não encontrar
+
+. \$WORKSPACE/venv_clean/bin/activate
 
 # Reiniciar Redis
 pkill -f redis-server
@@ -149,12 +176,12 @@ fi
 # Reiniciar API
 pkill -f "uvicorn"
 cd $API_DIR
-nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers \$(nproc) > $WORKSPACE/logs/api.log 2>&1 &
+nohup uvicorn src.main:app --host 0.0.0.0 --port \$API_PORT --workers \$(nproc) > $WORKSPACE/logs/api.log 2>&1 &
 
 # Reautenticar
 sleep 5
-TOKEN=\$(curl -s -X POST http://localhost:8000/api/v1/auth/login \\
-  -H "Content-Type: application/json" \\
+TOKEN=\$(curl -s -X POST http://localhost:\$API_PORT/api/v1/auth/login \
+  -H "Content-Type: application/json" \
   -d '{
     "username": "$DEFAULT_USER",
     "password": "$DEFAULT_PASS"
@@ -162,6 +189,7 @@ TOKEN=\$(curl -s -X POST http://localhost:8000/api/v1/auth/login \\
 
 echo \$TOKEN > $WORKSPACE/token.txt
 echo "Serviços reiniciados! Novo token gerado."
+echo "API rodando em: http://localhost:\$API_PORT"
 EOF
 
 chmod +x $WORKSPACE/restart.sh
@@ -170,14 +198,15 @@ chmod +x $WORKSPACE/restart.sh
 cat > $WORKSPACE/credentials.txt << EOF
 Usuário: $DEFAULT_USER
 Senha: $DEFAULT_PASS
-URL API: http://localhost:8000
-URL GUI: http://localhost:8080
+URL API: http://localhost:$API_PORT
+URL GUI: http://localhost:$GUI_PORT
+URL ComfyUI: http://localhost:$COMFY_PORT
 
 Para reiniciar os serviços use:
 ./restart.sh
 
 Para usar o token:
-export TOKEN=\$(cat /workspace/token.txt)
+export TOKEN=$(cat /workspace/token.txt)
 EOF
 
 echo -e "${BLUE}Credenciais salvas em: $WORKSPACE/credentials.txt${NC}" 
