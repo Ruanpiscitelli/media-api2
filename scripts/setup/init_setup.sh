@@ -186,17 +186,27 @@ python --version
 
 # Adicionar antes da instalação do PyTorch
 echo -e "${BLUE}Instalando CUDA Toolkit 12.1 e cuDNN...${NC}"
-apt-get install -y --allow-change-held-packages \
+
+# Configurar variáveis de ambiente do CUDA
+export PATH=/usr/local/cuda-12.1/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:$LD_LIBRARY_PATH
+
+# Verificar execução com Bash
+if [ -z "$BASH" ]; then
+    echo "❌ Este script requer o Bash. Execute com: bash $0"
+    exit 1
+fi
+
+# Adicionar antes da instalação do CUDA
+echo -e "${BLUE}Configurando repositórios NVIDIA...${NC}"
+add-apt-repository -y "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /"
+apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+apt-get update
+
+# Instalar com prioridade máxima
+apt-get install -y --allow-change-held-packages --priority=500 \
     cuda-toolkit-12-1 \
     libcudnn8=8.9.7.29-1+cuda12.2
-
-# E na instalação manual via .deb:
-apt-get install -y --allow-change-held-packages libcudnn8=8.9.7.29-1+cuda12.2
-
-# Atualizar variáveis de ambiente
-sed -i 's/cuda-11.8/cuda-12.1/g' /etc/bash.bashrc
-echo '[ -n "$BASH" ] && shopt -s histappend 2>/dev/null || true' >> /etc/bash.bashrc
-. /etc/bash.bashrc
 
 # Instalar torch primeiro
 echo "Instalando PyTorch..."
@@ -544,10 +554,3 @@ fi
 # Atualizar links para CUDA 12.1
 ln -sfn /usr/local/cuda-12.1 /usr/local/cuda
 ln -sfn /usr/local/cuda-12.1/lib64/libcudart.so.12.1 /usr/lib/x86_64-linux-gnu/libcudart.so.12.1
-
-# Adicionar instalação do Bash
-echo -e "${BLUE}Instalando Bash...${NC}"
-apt-get install -y bash
-
-# Modificar a linha problemática
-sed -i 's/\[ -n "\$BASH" \] && shopt -s histappend/[ -n "$BASH" ] \&\& shopt -s histappend 2>\/dev\/null || true/' scripts/setup/init_setup.sh
