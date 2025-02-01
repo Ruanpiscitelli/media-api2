@@ -16,7 +16,7 @@ import psutil
 import gc
 
 from src.config.gpu_config import get_gpu_config
-from src.core.cache import cache_manager
+from src.core.cache import cache
 from src.core.errors import InsufficientVRAMError, PreemptionError
 from src.core.monitoring.metrics import GPU_METRICS
 
@@ -59,7 +59,7 @@ class GPUManager:
     def __init__(self):
         """Inicializa o gerenciador unificado de GPUs"""
         self.config = get_gpu_config()
-        self.cache = cache_manager
+        self.cache = cache
         
         # Estado interno
         self.gpus = []
