@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     MAX_VIDEO_LENGTH: int = 300  # segundos
     MAX_VIDEO_SIZE: int = 100_000_000  # 100MB
 
+    # Adicionar timeout de renderização
+    RENDER_TIMEOUT_SECONDS: int = 300  # 5 minutos
+
     class Config:
         env_file = ".env"
 
