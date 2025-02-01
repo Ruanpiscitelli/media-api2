@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
+import secrets
 
 class GPUConfig(BaseSettings):
     """Configurações de GPU"""
@@ -81,7 +82,7 @@ class QueueConfig(BaseSettings):
 class SecurityConfig(BaseSettings):
     """Configurações de segurança"""
     secret_key: str = Field(
-        default=None,
+        default_factory=lambda: secrets.token_urlsafe(32),
         description="Chave secreta para JWT"
     )
     algorithm: str = Field(default="HS256")
@@ -189,7 +190,7 @@ class Settings(BaseSettings):
     
     # Security
     secret_key: str = Field(
-        default=None,
+        default_factory=lambda: secrets.token_urlsafe(32),
         description="Chave secreta para JWT"
     )
     algorithm: str = Field(default="HS256")
@@ -285,13 +286,6 @@ class Settings(BaseSettings):
     
     def check_config(self):
         """Valida configurações críticas"""
-        # Validar secret key
-        if not self.secret_key:
-            raise ValueError(
-                "SECRET_KEY não configurada. "
-                "Configure via variável de ambiente ou .env"
-            )
-            
         # Validar ambiente
         if self.environment not in ['development', 'staging', 'production']:
             raise ValueError(f"Ambiente inválido: {self.environment}")
@@ -303,21 +297,6 @@ class Settings(BaseSettings):
         # Validar rate limits
         if self.RATE_LIMIT_BURST > self.RATE_LIMIT_DEFAULT:
             raise ValueError("BURST limit não pode ser maior que DEFAULT limit")
-        
-        # Validar valores sensíveis
-        sensitive_settings = [
-            'secret_key',
-            'redis_password',
-            'database_url'
-        ]
-        
-        for setting in sensitive_settings:
-            value = getattr(self, setting, None)
-            if value and len(value) < 16:
-                raise ValueError(
-                    f"{setting} muito curto. "
-                    "Use valores com pelo menos 16 caracteres"
-                )
         
         # Validar URLs
         if not self.comfy_api_url.startswith(('http://', 'https://')):
