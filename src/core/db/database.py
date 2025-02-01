@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from src.core.config import settings
 import os
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Usar SQLite para desenvolvimento
 if settings.ENVIRONMENT == "development":
@@ -40,3 +41,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Cria engine assíncrono do SQLAlchemy
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DB_ECHO_LOG,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+)
