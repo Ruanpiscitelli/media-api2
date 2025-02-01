@@ -9,7 +9,7 @@ from typing import List, Optional, Dict
 import asyncio
 import logging
 
-from src.core.auth import get_current_user
+from src.services.auth import get_current_user
 from src.core.rate_limit import rate_limiter
 from src.services.suno import SunoService
 from src.core.gpu_manager import gpu_manager
