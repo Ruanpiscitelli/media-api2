@@ -23,6 +23,29 @@ CACHE_METRICS: Dict[str, Counter] = {
 
 # API Metrics
 API_METRICS = {
-    'requests': Counter('http_requests_total', 'Total de requisições HTTP', ['method', 'endpoint', 'status']),
-    'latency': Histogram('http_request_duration_seconds', 'Latência das requisições HTTP', ['method', 'endpoint'])
+    'gpu_temperature': Gauge(
+        'gpu_temperature',
+        'GPU temperature in celsius',
+        ['device_id']
+    ),
+    'gpu_utilization': Gauge(
+        'gpu_utilization',
+        'GPU utilization percentage',
+        ['device_id']
+    ),
+    'gpu_memory_used': Gauge(
+        'gpu_memory_used',
+        'GPU memory usage in bytes',
+        ['device_id']
+    ),
+    'task_duration': Histogram(
+        'task_duration_seconds',
+        'Task processing duration in seconds',
+        ['task_type']
+    ),
+    'tasks_queued': Gauge(
+        'tasks_queued',
+        'Number of tasks currently in queue',
+        ['task_type']
+    )
 } 

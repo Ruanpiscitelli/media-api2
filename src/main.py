@@ -24,6 +24,7 @@ from src.core.config import settings
 from src.core.rate_limit import rate_limiter
 from src.core.checks import run_system_checks
 from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
+from src.core.monitoring.metrics import API_METRICS
 from src.core.redis_client import close_redis_pool, init_redis_pool
 from src.core.middleware.connection import ConnectionMiddleware
 from src.core.initialization import cache_manager
