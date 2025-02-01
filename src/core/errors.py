@@ -11,8 +11,14 @@ from prometheus_client import Counter
 # Métricas
 ERROR_COUNTS = Counter('error_count_total', 'Total de erros por tipo', ['type'])
 
-class APIError(Exception):
-    """Erro base para todas as exceções da API"""
+class BaseError(Exception):
+    """Classe base para exceções personalizadas"""
+    def __init__(self, message: str = None):
+        self.message = message
+        super().__init__(self.message)
+
+class APIError(BaseError):
+    """Classe base para erros da API"""
     def __init__(
         self,
         message: str,
@@ -88,35 +94,48 @@ class ResourceConflictError(APIError):
         )
 
 # Erros de GPU
-class GPUError(APIError):
-    """Erro base para problemas com GPU"""
-    def __init__(self, message: str, details: Dict[str, Any]):
-        super().__init__(
-            message=message,
-            status_code=503,
-            error_code="gpu_error",
-            details=details
-        )
+class GPUError(BaseError):
+    """Classe base para erros relacionados a GPU"""
+    pass
 
-class NoGPUAvailableError(GPUError):
-    """Erro quando não há GPU disponível"""
-    def __init__(self, required_vram: int):
-        super().__init__(
-            message="No GPU available with sufficient VRAM",
-            details={"required_vram": required_vram}
-        )
+class InsufficientVRAMError(GPUError):
+    """
+    Erro lançado quando não há VRAM suficiente para executar uma tarefa
+    """
+    def __init__(self, required_vram: int, available_vram: int, gpu_id: int = None):
+        self.required_vram = required_vram
+        self.available_vram = available_vram
+        self.gpu_id = gpu_id
+        message = f"VRAM insuficiente: necessário {required_vram/1e9:.1f}GB, disponível {available_vram/1e9:.1f}GB"
+        if gpu_id is not None:
+            message += f" na GPU {gpu_id}"
+        super().__init__(message)
 
-class GPUOutOfMemoryError(GPUError):
-    """Erro de falta de memória na GPU"""
-    def __init__(self, gpu_id: int, available_vram: int, required_vram: int):
-        super().__init__(
-            message=f"GPU {gpu_id} out of memory",
-            details={
-                "gpu_id": gpu_id,
-                "available_vram": available_vram,
-                "required_vram": required_vram
-            }
-        )
+class PreemptionError(GPUError):
+    """
+    Erro lançado quando uma tarefa é interrompida por preempção
+    """
+    def __init__(self, task_id: str, gpu_id: int = None):
+        self.task_id = task_id
+        self.gpu_id = gpu_id
+        message = f"Tarefa {task_id} foi interrompida por preempção"
+        if gpu_id is not None:
+            message += f" na GPU {gpu_id}"
+        super().__init__(message)
+
+class NoAvailableGPUError(GPUError):
+    """
+    Erro lançado quando não há GPUs disponíveis
+    """
+    def __init__(self):
+        super().__init__("Não há GPUs disponíveis no momento")
+
+class GPUNotFoundError(GPUError):
+    """
+    Erro lançado quando uma GPU específica não é encontrada
+    """
+    def __init__(self, gpu_id: int):
+        super().__init__(f"GPU {gpu_id} não encontrada")
 
 # Erros de Fila
 class QueueError(APIError):
@@ -171,6 +190,50 @@ class ModelLoadError(ModelError):
             message=f"Failed to load model {model_id}",
             details={"model_id": model_id, "error": str(error)}
         )
+
+# Erros de API
+class ResourceError(BaseError):
+    """Classe base para erros de recursos"""
+    pass
+
+class DiskSpaceError(ResourceError):
+    """
+    Erro lançado quando não há espaço em disco suficiente
+    """
+    def __init__(self, required_space: int, available_space: int):
+        self.required_space = required_space
+        self.available_space = available_space
+        super().__init__(
+            f"Espaço insuficiente em disco: necessário {required_space/1e9:.1f}GB, "
+            f"disponível {available_space/1e9:.1f}GB"
+        )
+
+class MemoryError(ResourceError):
+    """
+    Erro lançado quando não há memória RAM suficiente
+    """
+    def __init__(self, required_memory: int, available_memory: int):
+        self.required_memory = required_memory
+        self.available_memory = available_memory
+        super().__init__(
+            f"Memória RAM insuficiente: necessário {required_memory/1e9:.1f}GB, "
+            f"disponível {available_memory/1e9:.1f}GB"
+        )
+
+# Erros de Processamento
+class ProcessingError(BaseError):
+    """Classe base para erros de processamento"""
+    pass
+
+class GenerationError(ProcessingError):
+    """
+    Erro lançado quando há falha na geração de conteúdo
+    """
+    def __init__(self, content_type: str, reason: str = None):
+        message = f"Falha na geração de {content_type}"
+        if reason:
+            message += f": {reason}"
+        super().__init__(message)
 
 # Handlers de Erro
 async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
