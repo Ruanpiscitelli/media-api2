@@ -81,8 +81,6 @@ mkdir -p $API_DIR/src/{api/{v1,v2},core,services,web,utils}
 mkdir -p $API_DIR/src/core/cache
 mkdir -p $API_DIR/src/generation/suno
 mkdir -p $API_DIR/src/generation/video
-mkdir -p $API_DIR/src/utils
-mkdir -p $API_DIR/src/generation/video/fast_huayuan
 
 # Criar __init__.py em todos os diretórios Python
 find $API_DIR/src -type d -exec touch {}/__init__.py \;
@@ -725,14 +723,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 EOF
 
 # Criar módulo FastHuayuan
-cat > $API_DIR/src/generation/video/fast_huayuan/__init__.py << 'EOF'
-from .generator import FastHuayuanGenerator
+echo "Criando módulo FastHuayuan..."
+FAST_HUAYUAN_DIR="$API_DIR/src/generation/video/fast_huayuan"
+mkdir -p "$FAST_HUAYUAN_DIR"
 
-__all__ = ['FastHuayuanGenerator']
-EOF
-
-# Criar arquivo generator.py com a implementação
-cat > $API_DIR/src/generation/video/fast_huayuan/generator.py << 'EOF'
+# Criar generator.py primeiro
+cat > "$FAST_HUAYUAN_DIR/generator.py" << 'EOF'
 """
 Módulo para geração de vídeos usando FastHuayuan.
 """
@@ -772,6 +768,22 @@ class FastHuayuanGenerator:
             logger.error(f"Erro na geração: {e}")
             raise
 EOF
+
+# Depois criar __init__.py
+cat > "$FAST_HUAYUAN_DIR/__init__.py" << 'EOF'
+"""
+FastHuayuan video generation package.
+"""
+from .generator import FastHuayuanGenerator
+
+__all__ = ['FastHuayuanGenerator']
+EOF
+
+# Verificar se os arquivos foram criados
+if [ ! -f "$FAST_HUAYUAN_DIR/generator.py" ] || [ ! -f "$FAST_HUAYUAN_DIR/__init__.py" ]; then
+    echo "❌ Erro ao criar arquivos do FastHuayuan"
+    exit 1
+fi
 
 # Criar módulos Suno
 cat > $API_DIR/src/generation/suno/bark_voice.py << 'EOF'
