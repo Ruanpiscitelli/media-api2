@@ -11,7 +11,15 @@ if settings.ENVIRONMENT == "development":
     # SQLite
     SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
     ASYNC_DATABASE_URL = "sqlite+aiosqlite:///./sql_app.db"
-    connect_args = {"check_same_thread": False}
+    # SQLite não suporta os mesmos parâmetros de pool que PostgreSQL
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=settings.DB_DEBUG
+    )
 else:
     # PostgreSQL
     SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL.replace(
@@ -24,27 +32,22 @@ else:
         'postgresql+asyncpg://',
         1
     )
-    connect_args = {}
-
-# Engine síncrono
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    echo=settings.DB_DEBUG,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    connect_args=connect_args
-)
-
-# Engine assíncrono
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=settings.DB_DEBUG,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_recycle=3600
-)
+    # PostgreSQL suporta configurações de pool
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        echo=settings.DB_DEBUG,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT
+    )
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=settings.DB_DEBUG,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT,
+        pool_recycle=3600
+    )
 
 # Sessões
 SessionLocal = sessionmaker(
