@@ -36,7 +36,7 @@ from src.core.config import settings
 from src.core.checks import run_system_checks
 from src.comfy.workflow_manager import ComfyWorkflowManager
 from src.core.gpu.manager import GPUManager
-from src.core.queue.manager import QueueManager
+from src.core.task_manager import TaskManager
 from src.core.initialization import initialize_api
 from src.core.errors import APIError, api_error_handler, validation_error_handler
 from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
