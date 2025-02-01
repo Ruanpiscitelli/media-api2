@@ -9,7 +9,7 @@ from PIL import Image
 import uuid
 
 from src.core.config import settings
-from src.core.cache import cache_manager
+from src.core.cache import cache
 from src.comfy.workflow_manager import ComfyWorkflowManager
 from src.core.gpu.manager import gpu_manager
 
@@ -20,7 +20,7 @@ class ImageService:
     
     def __init__(self):
         """Inicializa atributos básicos"""
-        self.cache = None
+        self.cache = cache
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.workflow_manager = None
         
@@ -33,8 +33,6 @@ class ImageService:
         
     async def initialize(self):
         """Inicializa o serviço de forma assíncrona"""
-        self.cache = await cache_manager.get_cache('images')
-        
         # Criar diretórios necessários
         Path("/workspace/media/images").mkdir(parents=True, exist_ok=True)
         Path("/workspace/cache/images").mkdir(parents=True, exist_ok=True)
@@ -158,12 +156,9 @@ class ImageService:
             logger.error(f"Erro no processamento: {e}")
             raise
 
-# Modificar a instância global para ser inicializada posteriormente
-image_service: Optional[ImageService] = None
+# Instância global
+image_service = ImageService()
 
 async def get_image_service() -> ImageService:
     """Retorna instância singleton do ImageService"""
-    global image_service
-    if image_service is None:
-        image_service = await ImageService.create()
     return image_service 

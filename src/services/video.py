@@ -14,7 +14,7 @@ from src.core.config import settings
 from src.generation.video.fast_huayuan import FastHuayuanGenerator
 from src.generation.video.compositor import VideoCompositor
 from src.generation.speech.pipeline import SpeechPipeline
-from src.core.cache.manager import cache_manager
+from src.core.cache import cache
 from src.utils.video import VideoProcessor
 import torch
 
@@ -32,7 +32,7 @@ class VideoService:
         self.compositor = VideoCompositor()
         self.speech_pipeline = SpeechPipeline()
         self.processor = VideoProcessor()
-        self.cache = None
+        self.cache = cache
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
     @classmethod
@@ -42,7 +42,6 @@ class VideoService:
         return service
         
     async def initialize(self):
-        self.cache = await cache_manager.get_cache('videos')
         # ... resto da inicialização ...
         
     async def validate_project(self, scenes: List[Dict]) -> Dict:
@@ -138,7 +137,7 @@ class VideoService:
         """
         try:
             # Recupera configuração da tarefa
-            task = await cache_manager.get_task(task_id)
+            task = await cache.get_task(task_id)
             project = task['params']
             
             # Processa cenas
@@ -291,7 +290,7 @@ class VideoService:
     async def _update_progress(self, task_id: str, progress: float):
         """Atualiza progresso da tarefa no cache."""
         try:
-            await cache_manager.update_task(task_id, {'progress': progress})
+            await cache.update_task(task_id, {'progress': progress})
         except Exception as e:
             logger.error(f"Erro atualizando progresso: {e}")
             
@@ -306,7 +305,7 @@ class VideoService:
             Dicionário com status atual
         """
         try:
-            task = await cache_manager.get_task(project_id)
+            task = await cache.get_task(project_id)
             if not task:
                 raise ValueError(f"Projeto {project_id} não encontrado")
                 
@@ -340,7 +339,7 @@ class VideoService:
         """
         try:
             # Recupera projeto
-            task = await cache_manager.get_task(project_id)
+            task = await cache.get_task(project_id)
             if not task:
                 raise ValueError(f"Projeto {project_id} não encontrado")
                 
@@ -390,11 +389,8 @@ class VideoService:
         except Exception as e:
             raise RuntimeError(f"Erro validando FFmpeg: {e}") 
 
-# Singleton pattern
-video_service: Optional[VideoService] = None
+# Instância global
+video_service = VideoService()
 
 async def get_video_service() -> VideoService:
-    global video_service
-    if video_service is None:
-        video_service = await VideoService.create()
     return video_service 

@@ -9,6 +9,7 @@ import asyncio
 from prometheus_client import Counter, Gauge
 from functools import wraps
 import warnings
+from src.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -67,14 +68,8 @@ async def init_redis_pool() -> aioredis.Redis:
     global redis_client
     
     try:
-        redis_client = await aioredis.from_url(
-            str(settings.REDIS_URL),  # Usa URL validada do Pydantic
-            encoding="utf-8",
-            decode_responses=True,
-            max_connections=settings.REDIS_MAX_CONNECTIONS,
-            socket_timeout=settings.REDIS_TIMEOUT,
-            retry_on_timeout=True
-        )
+        await cache.connect()
+        redis_client = cache.redis
         
         # Testa a conexão
         await redis_client.ping()
