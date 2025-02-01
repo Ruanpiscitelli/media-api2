@@ -29,9 +29,14 @@ check_service() {
 echo -e "\n${BLUE}Verificando Redis...${NC}"
 
 # Criar diretórios necessários
+echo -e "\n${BLUE}Criando diretórios...${NC}"
 mkdir -p /workspace/outputs/shorts
 mkdir -p /workspace/cache/shorts
 mkdir -p /workspace/uploads/shorts
+chown -R $(whoami):$(whoami) /workspace/outputs
+chown -R $(whoami):$(whoami) /workspace/cache
+chown -R $(whoami):$(whoami) /workspace/uploads
+echo -e "${GREEN}✅ Diretórios criados${NC}"
 
 if redis-cli ping > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Redis está respondendo${NC}"
@@ -105,6 +110,9 @@ pkill -f "uvicorn" || true
 # Configurar variáveis
 export PYTHONPATH=$API_DIR:$PYTHONPATH
 export LOG_LEVEL=debug
+
+# Forçar recarregamento das configurações
+touch $API_DIR/src/core/config.py
 
 # Iniciar API com log
 cd $API_DIR

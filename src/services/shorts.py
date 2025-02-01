@@ -18,7 +18,7 @@ import yt_dlp
 from moviepy.editor import VideoFileClip
 import numpy as np
 
-from src.core.config import settings
+from src.core.shorts_config import SHORTS_CONFIG
 from src.core.cache.manager import cache_manager
 from src.core.gpu_manager import gpu_manager
 from src.utils.video import VideoProcessor
@@ -48,9 +48,9 @@ class ShortsService:
         self.video_generator = None
         
         # Criar diretórios
-        Path(settings.SHORTS_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-        Path(settings.SHORTS_CACHE_DIR).mkdir(parents=True, exist_ok=True)
-        Path(settings.SHORTS_UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+        Path(SHORTS_CONFIG["OUTPUT_DIR"]).mkdir(parents=True, exist_ok=True)
+        Path(SHORTS_CONFIG["CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
+        Path(SHORTS_CONFIG["UPLOAD_DIR"]).mkdir(parents=True, exist_ok=True)
 
     def _load_config(self) -> Dict:
         """Carrega configurações dos shorts."""
@@ -196,7 +196,7 @@ class ShortsService:
                     duration=params['duration']
                 )
                 audio_path = os.path.join(
-                    settings.SHORTS_OUTPUT_DIR,
+                    SHORTS_CONFIG["OUTPUT_DIR"],
                     f"music_{task_id}.wav"
                 )
                 await self.video_processor.save_audio(audio, audio_path)
@@ -210,7 +210,7 @@ class ShortsService:
                     voice_id=params['voice_id']
                 )
                 voice_path = os.path.join(
-                    settings.SHORTS_OUTPUT_DIR,
+                    SHORTS_CONFIG["OUTPUT_DIR"],
                     f"voice_{task_id}.wav"
                 )
                 await self.video_processor.save_audio(voice, voice_path)
@@ -218,7 +218,7 @@ class ShortsService:
             # 4. Compor vídeo final
             task['progress'] = 80
             output_path = os.path.join(
-                settings.SHORTS_OUTPUT_DIR,
+                SHORTS_CONFIG["OUTPUT_DIR"],
                 f"short_{task_id}.mp4"
             )
             
@@ -238,7 +238,7 @@ class ShortsService:
             
             # Gerar preview
             preview_path = os.path.join(
-                settings.SHORTS_OUTPUT_DIR,
+                SHORTS_CONFIG["OUTPUT_DIR"],
                 f"preview_{task_id}.gif"
             )
             await self.video_processor.create_preview(
@@ -313,7 +313,7 @@ class ShortsService:
         try:
             # Gerar nome único
             filename = f"{uuid.uuid4()}{os.path.splitext(file.filename)[1]}"
-            filepath = os.path.join(settings.SHORTS_UPLOAD_DIR, filename)
+            filepath = os.path.join(SHORTS_CONFIG["UPLOAD_DIR"], filename)
             
             # Salvar arquivo
             async with aiofiles.open(filepath, 'wb') as f:
@@ -358,7 +358,7 @@ class ShortsService:
         """
         try:
             output_path = os.path.join(
-                settings.SHORTS_UPLOAD_DIR,
+                SHORTS_CONFIG["UPLOAD_DIR"],
                 f"{uuid.uuid4()}.mp4"
             )
             
@@ -557,7 +557,7 @@ class ShortsService:
             for i, segment in enumerate(segments):
                 # Extrair segmento
                 output_segment = os.path.join(
-                    settings.SHORTS_OUTPUT_DIR,
+                    SHORTS_CONFIG["OUTPUT_DIR"],
                     f"segment_{task_id}_{i}.mp4"
                 )
                 
@@ -576,7 +576,7 @@ class ShortsService:
                         duration=segment['duration']
                     )
                     audio_path = os.path.join(
-                        settings.SHORTS_OUTPUT_DIR,
+                        SHORTS_CONFIG["OUTPUT_DIR"],
                         f"music_{task_id}_{i}.wav"
                     )
                     await self.video_processor.save_audio(audio, audio_path)
@@ -589,14 +589,14 @@ class ShortsService:
                         voice_id=params['voice_id']
                     )
                     voice_path = os.path.join(
-                        settings.SHORTS_OUTPUT_DIR,
+                        SHORTS_CONFIG["OUTPUT_DIR"],
                         f"voice_{task_id}_{i}.wav"
                     )
                     await self.video_processor.save_audio(voice, voice_path)
                 
                 # Compor short final
                 output_path = os.path.join(
-                    settings.SHORTS_OUTPUT_DIR,
+                    SHORTS_CONFIG["OUTPUT_DIR"],
                     f"short_{task_id}_{i}.mp4"
                 )
                 
@@ -616,7 +616,7 @@ class ShortsService:
                 
                 # Gerar preview
                 preview_path = os.path.join(
-                    settings.SHORTS_OUTPUT_DIR,
+                    SHORTS_CONFIG["OUTPUT_DIR"],
                     f"preview_{task_id}_{i}.gif"
                 )
                 await self.video_processor.create_preview(
