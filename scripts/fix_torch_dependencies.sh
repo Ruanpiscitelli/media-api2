@@ -36,13 +36,47 @@ python -m pip install --upgrade pip setuptools wheel
 log "Instalando PyTorch..."
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# Instalar python-jose separadamente
-log "Instalando python-jose..."
-pip install --no-cache-dir python-jose[cryptography]
+# Instalar dependências críticas primeiro
+log "Instalando dependências críticas..."
+pip install --no-cache-dir \
+    python-jose[cryptography] \
+    redis \
+    psutil \
+    fastapi \
+    uvicorn \
+    python-dotenv \
+    pydantic \
+    pydantic-settings \
+    aioredis \
+    python-multipart \
+    python-jose[cryptography] \
+    passlib[bcrypt] \
+    tenacity \
+    prometheus-client \
+    APScheduler
 
-# Verificar instalações
+# Instalar dependências do projeto
+log "Instalando dependências do projeto..."
+pip install -r /workspace/media-api2/requirements/vast.txt --no-cache-dir
+
+# Verificar instalações críticas
 log "Verificando instalações..."
-python -c "import torch; print(f'PyTorch {torch.__version__} instalado com sucesso')"
-python -c "from jose import jwt; print('python-jose instalado com sucesso')"
+packages=(
+    "torch"
+    "python-jose"
+    "redis"
+    "psutil"
+    "fastapi"
+    "pydantic"
+    "aioredis"
+)
+
+for package in "${packages[@]}"; do
+    if python -c "import $package" 2>/dev/null; then
+        log "✅ $package instalado com sucesso"
+    else
+        error "❌ Falha ao importar $package"
+    fi
+done
 
 log "Setup completo!" 
