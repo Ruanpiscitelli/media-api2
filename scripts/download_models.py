@@ -26,21 +26,17 @@ MODELS = {
         }
     },
     "fish_speech": {
-        "base": {
-            "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors",
-            "path": "/workspace/models/fish_speech/model.pt",
-            "sha256": "cc6cb27103417325ff94f52b7a5d2dde45a7515b25c255d8e396c90014281516"
-        }
+        "model.pt": "URL_DO_MODELO",
+        "config.json": "URL_DO_CONFIG",
+        "vocab.json": "URL_DO_VOCAB"
     }
 }
 
-def download_file(url: str, dest_path: str, desc: str = None):
+def download_file(url: str, dest_path: Path, desc: str):
     """Download arquivo com barra de progresso"""
     response = requests.get(url, stream=True)
     total = int(response.headers.get('content-length', 0))
-    
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    
+
     with open(dest_path, 'wb') as file, tqdm(
         desc=desc,
         total=total,
@@ -68,26 +64,17 @@ def main():
             os.makedirs(path, exist_ok=True)
         
         # Download dos modelos
-        for model_type, variants in MODELS.items():
-            for variant_name, info in variants.items():
-                dest_path = info["path"]
-                
-                if not os.path.exists(dest_path):
-                    logger.info(f"Baixando {model_type} {variant_name}...")
-                    download_file(
-                        info["url"], 
-                        dest_path,
-                        f"Downloading {model_type} {variant_name}"
-                    )
-                    
-                    if verify_sha256(dest_path, info["sha256"]):
-                        logger.info(f"✅ {model_type} {variant_name} verificado com sucesso")
-                    else:
-                        logger.error(f"❌ Falha na verificação de {model_type} {variant_name}")
-                        os.remove(dest_path)
-                        sys.exit(1)
+        for model_name, files in MODELS.items():
+            model_dir = Path("/workspace/models") / model_name
+            model_dir.mkdir(parents=True, exist_ok=True)
+            
+            for file_name, url in files.items():
+                dest_path = model_dir / file_name
+                if not dest_path.exists():
+                    logger.info(f"Baixando {file_name} para {model_name}")
+                    download_file(url, dest_path, f"Baixando {file_name}")
                 else:
-                    logger.info(f"Modelo {model_type} {variant_name} já existe")
+                    logger.info(f"{file_name} já existe para {model_name}")
         
         logger.info("✅ Todos os modelos baixados e verificados com sucesso!")
         

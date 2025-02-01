@@ -4,6 +4,7 @@ Configurações da aplicação
 from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 class Settings(BaseSettings):
     """Configurações da API"""
@@ -54,7 +55,7 @@ class Settings(BaseSettings):
     MAX_THREADS: int = 4
     
     # Debug
-    DEBUG: bool = True
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     LOG_LEVEL: str = "INFO"
     
     # GPU
@@ -67,9 +68,29 @@ class Settings(BaseSettings):
     
     # Caminhos dos modelos
     MODELS_BASE_DIR: Path = BASE_DIR / "models"
-    FISH_SPEECH_MODEL_PATH: str = str(MODELS_BASE_DIR / "fish_speech/model.pt")
-    FISH_SPEECH_CONFIG_PATH: str = str(MODELS_BASE_DIR / "fish_speech/config.json")
-    FISH_SPEECH_VOCAB_PATH: str = str(MODELS_BASE_DIR / "fish_speech/vocab.json")
+    FISH_SPEECH_MODEL_PATH: str = os.getenv(
+        "FISH_SPEECH_MODEL_PATH", 
+        "/workspace/models/fish_speech/model.pt"
+    )
+    FISH_SPEECH_CONFIG_PATH: str = os.getenv(
+        "FISH_SPEECH_CONFIG_PATH",
+        "/workspace/models/fish_speech/config.json"
+    )
+    FISH_SPEECH_VOCAB_PATH: str = os.getenv(
+        "FISH_SPEECH_VOCAB_PATH",
+        "/workspace/models/fish_speech/vocab.json"
+    )
+    
+    # Modo de desenvolvimento/teste
+    TESTING: bool = os.getenv("TESTING", "False").lower() == "true"
+    
+    # Prometheus
+    ENABLE_METRICS: bool = os.getenv("ENABLE_METRICS", "true").lower() == "true"
+    METRICS_PORT: int = int(os.getenv("METRICS_PORT", "9090"))
+    
+    # GPU Manager
+    GPU_METRICS_PREFIX: str = os.getenv("GPU_METRICS_PREFIX", "gpu")
+    GPU_POLL_INTERVAL: int = int(os.getenv("GPU_POLL_INTERVAL", "5"))
     
     class Config:
         env_file = ".env"

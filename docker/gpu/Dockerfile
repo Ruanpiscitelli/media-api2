@@ -13,4 +13,15 @@ RUN apt-get update && apt-get install -y \
     libespeak-ng1 \
     # ... outras dependências ...
 
+# Instalar dependências Python
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copiar script de download
+COPY scripts/download_models.py /app/scripts/
+
+# Criar diretório de modelos e baixar
+RUN mkdir -p /workspace/models && \
+    python /app/scripts/download_models.py
+
 # ... resto do Dockerfile ... 

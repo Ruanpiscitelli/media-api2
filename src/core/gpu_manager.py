@@ -10,10 +10,13 @@ from typing import Optional, Dict, List
 from dataclasses import dataclass
 from src.core.config import settings
 import pynvml
-from prometheus_client import Gauge
+from prometheus_client import Gauge, CollectorRegistry, REGISTRY
 from src.core.cache import Cache
 
 logger = logging.getLogger(__name__)
+
+# Criar um registro dedicado para métricas GPU
+GPU_REGISTRY = CollectorRegistry()
 
 @dataclass
 class GPUTask:
@@ -27,29 +30,40 @@ class GPUTask:
 class GPUManager:
     """Gerenciador de recursos de GPU com monitoramento Prometheus"""
     
+    _instance = None
+    
+    def __new__(cls):
+        """Implementa singleton para evitar múltiplas instâncias"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        """Inicializa o gerenciador GPU"""
-        self.gpus = []
-        self.tasks: Dict[str, GPUTask] = {}
-        self.lock = asyncio.Lock()
-        self._initialize_gpus()
-        self._init_metrics()
-        self.vram_map = {
-            'sdxl': 8.5,
-            'fish_speech': 4.2,
-            'video': 12.0
-        }
-        self.cache = Cache()
-        
-        # Add default VRAM requirements for different workflow types
-        self.workflow_vram_requirements = {
-            'txt2img': 8.5 * 1024**3,  # 8.5GB
-            'img2img': 9.0 * 1024**3,  # 9GB
-            'inpainting': 9.5 * 1024**3,  # 9.5GB
-            'upscale': 4.0 * 1024**3,  # 4GB
-            'video': 12.0 * 1024**3,  # 12GB
-            'audio': 4.2 * 1024**3,  # 4.2GB
-        }
+        """Inicializa o gerenciador de GPUs"""
+        if not hasattr(self, 'initialized'):
+            self.registry = GPU_REGISTRY
+            self.gpus = []
+            self.tasks: Dict[str, GPUTask] = {}
+            self.lock = asyncio.Lock()
+            self._initialize_gpus()
+            self._init_metrics()
+            self.vram_map = {
+                'sdxl': 8.5,
+                'fish_speech': 4.2,
+                'video': 12.0
+            }
+            self.cache = Cache()
+            self.initialized = True
+            
+            # Add default VRAM requirements for different workflow types
+            self.workflow_vram_requirements = {
+                'txt2img': 8.5 * 1024**3,  # 8.5GB
+                'img2img': 9.0 * 1024**3,  # 9GB
+                'inpainting': 9.5 * 1024**3,  # 9.5GB
+                'upscale': 4.0 * 1024**3,  # 4GB
+                'video': 12.0 * 1024**3,  # 12GB
+                'audio': 4.2 * 1024**3,  # 4.2GB
+            }
         
     def _initialize_gpus(self):
         """Inicializa lista de GPUs disponíveis"""
@@ -68,10 +82,46 @@ class GPUManager:
             logger.info(f"GPU {gpu_id} inicializada: {total_memory/1024**3:.1f}GB VRAM")
     
     def _init_metrics(self):
-        """Registra métricas Prometheus para monitoramento de GPUs"""
-        self.utilization = Gauge('gpu_utilization', 'Utilização da GPU', ['gpu_id'])
-        self.memory_used = Gauge('gpu_memory_used', 'VRAM utilizada', ['gpu_id'])
-        self.temperature = Gauge('gpu_temperature', 'Temperatura da GPU', ['gpu_id'])
+        """Inicializa métricas Prometheus"""
+        try:
+            metric_prefix = settings.GPU_METRICS_PREFIX
+            
+            # Usar prefixos únicos para cada métrica
+            self.metrics = {
+                'utilization': Gauge(
+                    f'{metric_prefix}_utilization',
+                    'Utilização da GPU',
+                    ['gpu_id'],
+                    registry=self.registry
+                ),
+                'memory_used': Gauge(
+                    f'{metric_prefix}_memory_used',
+                    'Memória utilizada da GPU (MB)',
+                    ['gpu_id'],
+                    registry=self.registry
+                ),
+                'temperature': Gauge(
+                    f'{metric_prefix}_temperature',
+                    'Temperatura da GPU (°C)',
+                    ['gpu_id'],
+                    registry=self.registry
+                ),
+                'power_usage': Gauge(
+                    f'{metric_prefix}_power_usage',
+                    'Consumo de energia da GPU (W)',
+                    ['gpu_id'],
+                    registry=self.registry
+                ),
+                'memory_total': Gauge(
+                    f'{metric_prefix}_memory_total',
+                    'Memória total da GPU (MB)',
+                    ['gpu_id'],
+                    registry=self.registry
+                )
+            }
+        except Exception as e:
+            logger.error(f"Erro ao inicializar métricas: {e}")
+            raise
 
     async def allocate_gpu(self, task_id: str, vram_required: int, priority: int = 0) -> Optional[int]:
         """
