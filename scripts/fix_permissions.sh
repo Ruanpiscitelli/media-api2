@@ -14,8 +14,15 @@ error() {
     echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
 }
 
-# Lista de diretórios para ajustar permissões
-DIRECTORIES=(
+# Instalar dependências
+log "Instalando dependências..."
+pip install -r /workspace/media-api2/requirements/vast.txt
+
+# Ajustar permissões sem sudo (já que estamos como root)
+log "Ajustando permissões..."
+
+# Criar diretórios com permissões corretas
+directories=(
     "/workspace"
     "/workspace/logs"
     "/workspace/media"
@@ -25,26 +32,28 @@ DIRECTORIES=(
     "/workspace/ComfyUI/models"
 )
 
-# Ajustar permissões
-for dir in "${DIRECTORIES[@]}"; do
-    if [ -d "$dir" ]; then
-        log "Ajustando permissões para $dir"
-        chmod -R 755 "$dir"
-        chown -R $(whoami):$(whoami) "$dir"
-    else
-        log "Criando diretório $dir"
-        mkdir -p "$dir"
-        chmod -R 755 "$dir"
-        chown -R $(whoami):$(whoami) "$dir"
-    fi
+for dir in "${directories[@]}"; do
+    mkdir -p "$dir"
+    chmod 777 "$dir"  # Dar permissões totais
+    log "Diretório $dir criado/ajustado"
 done
 
 # Verificar permissões
-for dir in "${DIRECTORIES[@]}"; do
+log "\nVerificando permissões finais:"
+for dir in "${directories[@]}"; do
     if [ -d "$dir" ]; then
         perms=$(stat -c "%a %U:%G" "$dir")
-        log "Permissões de $dir: $perms"
+        log "$dir: $perms"
     fi
 done
 
-log "Permissões ajustadas com sucesso!" 
+# Criar arquivo .env se não existir
+if [ ! -f "/workspace/media-api2/.env" ]; then
+    log "Criando arquivo .env..."
+    cat > /workspace/media-api2/.env << EOF
+DEBUG=True
+ENVIRONMENT=development
+EOF
+fi
+
+log "Setup completo!"
