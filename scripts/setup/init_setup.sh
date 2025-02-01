@@ -50,14 +50,16 @@ mkdir -p $WORKSPACE/{logs,media,cache,models,config,temp} \
 
 # Criar estrutura completa do projeto
 echo "Criando estrutura de diretórios..."
-mkdir -p $API_DIR/src/{
-    api/{v1,v2}/{endpoints,middleware},
-    services,
-    core,
-    comfy,
-    web/{templates,static},
-    utils
-}
+mkdir -p $API_DIR/src/api/v1/endpoints \
+         $API_DIR/src/api/v1/middleware \
+         $API_DIR/src/api/v2/endpoints \
+         $API_DIR/src/api/v2/middleware \
+         $API_DIR/src/services \
+         $API_DIR/src/core \
+         $API_DIR/src/comfy \
+         $API_DIR/src/web/templates \
+         $API_DIR/src/web/static \
+         $API_DIR/src/utils
 
 # Criar __init__.py em todos os diretórios Python
 find $API_DIR/src -type d -exec touch {}/__init__.py \;
