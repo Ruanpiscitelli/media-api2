@@ -3,6 +3,34 @@ set -e
 
 echo "Iniciando setup do Media API..."
 
+# Função para verificar se porta está em uso
+check_port() {
+    local port=$1
+    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null ; then
+        echo "Porta $port já está em uso. Tentando limpar..."
+        # Tenta matar o processo usando a porta
+        lsof -ti :$port | xargs kill -9 2>/dev/null
+        sleep 2
+    fi
+}
+
+# Função para limpar processos anteriores
+cleanup_old_processes() {
+    echo "Limpando processos anteriores..."
+    pkill -f prometheus || true
+    pkill -f grafana-server || true
+    pkill -f uvicorn || true
+    redis-cli shutdown || true
+    sleep 2
+}
+
+# Limpar processos antigos e verificar portas
+cleanup_old_processes
+check_port 3000  # Grafana
+check_port 9090  # Prometheus
+check_port 8000  # API
+check_port 6379  # Redis
+
 # 1. Configuração inicial do sistema
 apt-get update && apt-get install -y \
     git python3-pip python3-venv redis-server net-tools ffmpeg \
@@ -99,10 +127,19 @@ cat > conf/custom.ini << EOF
 [server]
 http_port = 3000
 domain = localhost
+protocol = http
+root_url = %(protocol)s://%(domain)s:%(http_port)s/
 [security]
 admin_user = admin
 admin_password = admin
+[paths]
+data = /workspace/grafana/data
+logs = /workspace/grafana/logs
+plugins = /workspace/grafana/plugins
 EOF
+
+# Criar diretórios necessários para Grafana
+mkdir -p /workspace/grafana/{data,logs,plugins}
 
 nohup ./bin/grafana-server --config=conf/custom.ini --homepath=. > /workspace/logs/grafana.log 2>&1 &
 GRAFANA_PID=$!
@@ -155,15 +192,28 @@ echo "- Grafana: http://localhost:3000"
 # Função para parar serviços graciosamente
 cleanup() {
     echo "Parando serviços..."
+    echo "Parando Prometheus..."
     kill $PROMETHEUS_PID 2>/dev/null
+    wait $PROMETHEUS_PID 2>/dev/null
+
+    echo "Parando Grafana..."
     kill $GRAFANA_PID 2>/dev/null
+    wait $GRAFANA_PID 2>/dev/null
+
+    echo "Parando API..."
     kill $API_PID 2>/dev/null
+    wait $API_PID 2>/dev/null
+
+    echo "Parando Redis..."
     redis-cli shutdown
+
+    echo "Todos os serviços parados."
     exit 0
 }
 
 # Registrar função de cleanup para SIGTERM e SIGINT
 trap cleanup SIGTERM SIGINT
+trap cleanup EXIT
 
 # Manter container rodando e mostrar logs
 tail -f /workspace/logs/*.log 
