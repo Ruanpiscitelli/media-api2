@@ -9,16 +9,55 @@ from typing import Any, Dict, Optional, Union
 from datetime import datetime, timedelta
 import aioredis
 from prometheus_client import Counter, Gauge
+from prometheus_client.registry import REGISTRY
 
 from src.core.config import settings
 from src.core.errors import APIError
 
 logger = logging.getLogger(__name__)
 
-# Métricas
-CACHE_HITS = Counter('cache_hits_total', 'Total de hits no cache', ['type'])
-CACHE_MISSES = Counter('cache_misses_total', 'Total de misses no cache', ['type'])
-CACHE_SIZE = Gauge('cache_size_bytes', 'Tamanho do cache em bytes', ['type'])
+# Verificar se as métricas já existem antes de criar
+def create_metrics():
+    """Cria métricas Prometheus se não existirem"""
+    metrics = {}
+    
+    # Cache Hits
+    try:
+        metrics['cache_hits'] = REGISTRY.get_sample_value('cache_hits_total')
+    except:
+        metrics['cache_hits'] = Counter(
+            'cache_hits_total',
+            'Total de hits no cache',
+            ['type']
+        )
+    
+    # Cache Misses
+    try:
+        metrics['cache_misses'] = REGISTRY.get_sample_value('cache_misses_total')
+    except:
+        metrics['cache_misses'] = Counter(
+            'cache_misses_total',
+            'Total de misses no cache',
+            ['type']
+        )
+    
+    # Cache Size
+    try:
+        metrics['cache_size'] = REGISTRY.get_sample_value('cache_size_bytes')
+    except:
+        metrics['cache_size'] = Gauge(
+            'cache_size_bytes',
+            'Tamanho do cache em bytes',
+            ['type']
+        )
+    
+    return metrics
+
+# Criar métricas
+METRICS = create_metrics()
+CACHE_HITS = METRICS['cache_hits']
+CACHE_MISSES = METRICS['cache_misses']
+CACHE_SIZE = METRICS['cache_size']
 
 class CacheError(APIError):
     """Erro base para problemas com cache"""

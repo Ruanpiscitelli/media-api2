@@ -1,6 +1,6 @@
 """
 Pacote de gerenciamento de cache
 """
-from .manager import cache_manager, CacheError
+from .manager import CacheManager, CacheError, cache_manager
 
-__all__ = ['cache_manager', 'CacheError'] 
+__all__ = ['CacheManager', 'CacheError', 'cache_manager'] 

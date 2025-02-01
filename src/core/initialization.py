@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from src.core.rate_limit import rate_limiter
 import os
 import anyio
-from src.core.cache_manager import cache_manager
+from src.core.cache import cache_manager
 
 logger = logging.getLogger(__name__)
 
