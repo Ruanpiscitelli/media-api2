@@ -43,7 +43,15 @@ class VideoService:
         return service
         
     async def initialize(self):
-        # ... resto da inicialização ...
+        """Inicializa recursos necessários"""
+        try:
+            # Criar diretórios
+            Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
+            Path(settings.CACHE_DIR).mkdir(parents=True, exist_ok=True)
+            logger.info("✅ Diretórios criados")
+        except Exception as e:
+            logger.error(f"❌ Erro na inicialização: {e}")
+            raise
         
     async def validate_project(self, scenes: List[Dict]) -> Dict:
         """
