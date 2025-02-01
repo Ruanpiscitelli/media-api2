@@ -201,10 +201,12 @@ done
 
 # Iniciar API com retry
 echo "Iniciando API..."
-max_retries=3
+max_retries=10
 retry_count=0
 
 while [ $retry_count -lt $max_retries ]; do
+    echo "Tentativa $((retry_count + 1)) de $max_retries para iniciar API..."
+    
     python -m uvicorn src.main:app \
         --host 0.0.0.0 \
         --port 8000 \
@@ -214,18 +216,29 @@ while [ $retry_count -lt $max_retries ]; do
     
     # Guardar PID
     API_PID=$!
+    echo "API iniciada com PID: $API_PID"
     
     # Verificar se API iniciou
     echo "Verificando API..."
     for i in {1..30}; do
+        echo "Verificação $i/30: Testando conexão com a API..."
+        
+        # Mostrar últimas linhas do log
+        echo "Últimas linhas do log:"
+        tail -n 5 /workspace/logs/api.log
+        
         if curl -s http://localhost:8000/health | grep -q "healthy"; then
-            echo "API iniciada com sucesso!"
+            echo "✅ API iniciada com sucesso na porta 8000!"
+            echo "Últimas linhas do log de sucesso:"
+            tail -n 10 /workspace/logs/api.log
             break 2  # Sai dos dois loops
         fi
         
         # Verificar se processo morreu
         if ! kill -0 $API_PID 2>/dev/null; then
-            echo "Processo da API morreu, tentando novamente..."
+            echo "❌ Processo da API (PID: $API_PID) morreu"
+            echo "Log de erro:"
+            tail -n 20 /workspace/logs/api.log
             retry_count=$((retry_count + 1))
             sleep 5
             break
@@ -235,7 +248,9 @@ while [ $retry_count -lt $max_retries ]; do
     done
     
     if [ $retry_count -eq $max_retries ]; then
-        echo "Falha ao iniciar API após $max_retries tentativas"
+        echo "❌ Falha ao iniciar API após $max_retries tentativas"
+        echo "Últimas linhas do log de erro:"
+        tail -n 50 /workspace/logs/api.log
         exit 1
     fi
 done
