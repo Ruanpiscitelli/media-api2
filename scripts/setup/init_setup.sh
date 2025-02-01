@@ -185,10 +185,19 @@ python -c "import moviepy.editor; print('Moviepy instalado com sucesso!')"
 python --version
 
 # Adicionar antes da instalação do PyTorch
-echo -e "${BLUE}Instalando CUDA Toolkit 12.1...${NC}"
+echo -e "${BLUE}Instalando CUDA Toolkit 12.1 e cuDNN...${NC}"
 apt-get install -y --no-install-recommends \
     cuda-toolkit-12-1 \
-    libcudnn8=8.9.5.*-1+cuda12.1
+    libcudnn8=8.9.7*+cuda12.2  # Versão mais recente compatível
+
+# Ou para instalação manual via pacote .deb:
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
+mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/12.2.2/local_installers/cuda-repo-ubuntu2204-12-2-local_12.2.2-535.104.05-1_amd64.deb
+dpkg -i cuda-repo-ubuntu2204-12-2-local_12.2.2-535.104.05-1_amd64.deb
+cp /var/cuda-repo-ubuntu2204-12-2-local/cuda-*-keyring.gpg /usr/share/keyrings/
+apt-get update
+apt-get install libcudnn8=8.9.7.29-1+cuda12.2
 
 # Atualizar variáveis de ambiente
 sed -i 's/cuda-11.8/cuda-12.1/g' /etc/bash.bashrc
