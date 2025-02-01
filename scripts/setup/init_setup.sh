@@ -80,8 +80,9 @@ echo "Criando estrutura de diretórios..."
 mkdir -p $API_DIR/src/{api/{v1,v2},core,services,web,utils}
 mkdir -p $API_DIR/src/core/cache
 mkdir -p $API_DIR/src/generation/suno
-mkdir -p $API_DIR/src/generation/video/fast_huayuan
+mkdir -p $API_DIR/src/generation/video
 mkdir -p $API_DIR/src/utils
+mkdir -p $API_DIR/src/generation/video/fast_huayuan
 
 # Criar __init__.py em todos os diretórios Python
 find $API_DIR/src -type d -exec touch {}/__init__.py \;
@@ -725,6 +726,13 @@ EOF
 
 # Criar módulo FastHuayuan
 cat > $API_DIR/src/generation/video/fast_huayuan/__init__.py << 'EOF'
+from .generator import FastHuayuanGenerator
+
+__all__ = ['FastHuayuanGenerator']
+EOF
+
+# Criar arquivo generator.py com a implementação
+cat > $API_DIR/src/generation/video/fast_huayuan/generator.py << 'EOF'
 """
 Módulo para geração de vídeos usando FastHuayuan.
 """
