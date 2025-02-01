@@ -31,6 +31,7 @@ try:
     from src.main import app
     from src.web.routes import router, gui_app
     from src.config import settings
+    from slowapi import Limiter
     print('✅ Importação do app bem sucedida')
 except Exception as e:
     print(f'❌ Erro ao importar: {e}')

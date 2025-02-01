@@ -89,6 +89,9 @@ python3 -m venv $WORKSPACE/venv_clean
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools
 
+# Instalar dependências críticas primeiro
+pip install slowapi fastapi uvicorn redis
+
 # Verificar versão do Python
 python --version
 
