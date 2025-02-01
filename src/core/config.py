@@ -205,9 +205,10 @@ class Settings(BaseSettings):
     temp_file_max_age: int = Field(default=3600)
     
     # ComfyUI
-    comfy_api_url: str = Field(default="http://localhost:8188/api")
-    comfy_ws_url: str = Field(default="ws://localhost:8188/ws")
-    comfy_timeout: int = Field(default=30)
+    COMFY_API_URL: str = "http://localhost:8188"
+    COMFY_WS_URL: str = "ws://localhost:8188/ws"
+    COMFY_TIMEOUT: int = 30
+    COMFY_API_KEY: Optional[str] = None
     max_concurrent_renders: int = Field(default=4)
     max_render_time: int = Field(default=300)
     max_video_length: int = Field(default=300)
@@ -300,8 +301,8 @@ class Settings(BaseSettings):
             raise ValueError("BURST limit não pode ser maior que DEFAULT limit")
         
         # Validar URLs
-        if not self.comfy_api_url.startswith(('http://', 'https://')):
-            raise ValueError("comfy_api_url deve começar com http:// ou https://")
+        if not self.COMFY_API_URL.startswith(('http://', 'https://')):
+            raise ValueError("COMFY_API_URL deve começar com http:// ou https://")
     
     @validator("RATE_LIMIT_BURST")
     def validate_rate_limits(cls, v, values):
