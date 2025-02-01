@@ -269,7 +269,7 @@ pip install accelerate==0.25.0
 pip install triton==2.1.0
 
 # Adicionar após instalação do CUDA
-pip install nvidia-cudnn-cu12==8.9.5.29 \
+pip install nvidia-cudnn-cu12==8.9.7.29 \
     nvidia-cublas-cu12==12.1.3.1 \
     nvidia-cuda-nvrtc-cu12==12.1.105 \
     nvidia-cuda-runtime-cu12==12.1.105
