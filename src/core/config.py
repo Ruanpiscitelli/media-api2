@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
+    # Adicionar novas configurações de renderização
+    MAX_CONCURRENT_RENDERS: int = 4
+    MAX_RENDER_TIME: int = 300  # segundos
+    MAX_VIDEO_LENGTH: int = 300  # segundos
+    MAX_VIDEO_SIZE: int = 100_000_000  # 100MB
+
     class Config:
         env_file = ".env"
 

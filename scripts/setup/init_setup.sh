@@ -374,20 +374,14 @@ echo -e "${BLUE}Credenciais salvas em: $WORKSPACE/credentials.txt${NC}"
 
 # Configurar variáveis de ambiente
 cat > $WORKSPACE/.env << EOF
-NVIDIA_VISIBLE_DEVICES=all
-DATA_DIRECTORY=/workspace
-API_HOST=0.0.0.0
-API_PORT=$API_PORT
+DEBUG=True
 REDIS_HOST=localhost
-REDIS_PORT=$REDIS_PORT
-COMFY_HOST=0.0.0.0
-COMFY_PORT=$COMFY_PORT
-COMFY_TIMEOUT=300
-COMFY_API_KEY=$(openssl rand -hex 32)  # Gera uma chave API aleatória
-MEDIA_DIR=/workspace/media
-MODELS_DIR=/workspace/models
-
-# Limites de renderização
+REDIS_PORT=6379
+JWT_SECRET_KEY=$TOKEN
+JWT_ALGORITHM=HS256
+RATE_LIMIT_PER_MINUTE=60
+COMFY_API_URL=http://localhost:8188/api
+COMFY_WS_URL=ws://localhost:8188/ws
 MAX_CONCURRENT_RENDERS=4
 MAX_RENDER_TIME=300
 MAX_VIDEO_LENGTH=300
