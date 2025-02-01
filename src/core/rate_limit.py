@@ -3,7 +3,7 @@ Módulo para controle de rate limiting usando Redis.
 Implementa política de degradação graciosa quando Redis indisponível.
 """
 
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request, HTTPException
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from src.core.config import settings
@@ -12,6 +12,7 @@ import logging
 from typing import Optional
 from datetime import datetime, timedelta
 import time
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -19,45 +20,77 @@ class RateLimitError(Exception):
     """Exceção customizada para erros de rate limiting"""
     pass
 
-def get_redis_client() -> Optional[redis.Redis]:
+class RedisManager:
     """
-    Cria conexão com Redis com retry.
-    Retorna None se não conseguir conectar após tentativas.
+    Gerenciador de conexão Redis com singleton pattern
     """
-    max_retries = 3
-    retry_delay = 1  # segundos
+    _instance = None
+    _client = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(RedisManager, cls).__new__(cls)
+        return cls._instance
+
+    def get_client(self) -> Optional[redis.Redis]:
+        """
+        Retorna cliente Redis existente ou tenta criar novo
+        """
+        if self._client is not None:
+            try:
+                self._client.ping()
+                return self._client
+            except:
+                self._client = None
+        
+        self._client = self._create_client()
+        return self._client
+
+    def _create_client(self) -> Optional[redis.Redis]:
+        """
+        Cria nova conexão com Redis com retry
+        """
+        max_retries = 3
+        retry_delay = 1  # segundos
+        
+        for attempt in range(max_retries):
+            try:
+                client = redis.Redis(
+                    host=settings.REDIS_HOST,
+                    port=settings.REDIS_PORT,
+                    password=settings.REDIS_PASSWORD,
+                    db=settings.REDIS_DB,
+                    socket_timeout=settings.REDIS_TIMEOUT,
+                    decode_responses=True,
+                    ssl=settings.REDIS_SSL
+                )
+                client.ping()  # Testa conexão
+                return client
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"Erro conectando ao Redis após {max_retries} tentativas: {e}")
+                time.sleep(retry_delay)
+        return None
+
+def get_limiter() -> Limiter:
+    """
+    Factory function para criar e configurar o limiter.
+    Evita problemas de importação circular e inicialização prematura.
+    """
+    redis_manager = RedisManager()
+    redis_client = redis_manager.get_client()
     
-    for attempt in range(max_retries):
-        try:
-            client = redis.Redis(
-                host=settings.REDIS_HOST,
-                port=settings.REDIS_PORT,
-                password=settings.REDIS_PASSWORD,
-                db=settings.REDIS_DB,
-                socket_timeout=settings.REDIS_TIMEOUT,
-                decode_responses=True,
-                ssl=settings.REDIS_SSL
-            )
-            client.ping()  # Testa conexão
-            return client
-        except Exception as e:
-            if attempt == max_retries - 1:
-                logger.error(f"Erro conectando ao Redis após {max_retries} tentativas: {e}")
-                return None
-            time.sleep(retry_delay)
-    return None
+    if redis_client is None:
+        logger.critical("Redis indisponível - Rate limiting pode não funcionar corretamente")
+        
+    return Limiter(
+        key_func=get_remote_address,
+        default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
+        storage_uri=f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+    )
 
-# Configurar limiter apenas com Redis - sem fallback para memória
-redis_client = get_redis_client()
-if redis_client is None:
-    # Se Redis indisponível durante inicialização, log erro crítico
-    logger.critical("Redis indisponível - Rate limiting não funcionará corretamente")
-
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
-    storage_uri=f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}"
-)
+# Criar instância do limiter usando a factory function
+limiter = get_limiter()
 
 async def rate_limiter(request: Request):
     """
@@ -65,25 +98,30 @@ async def rate_limiter(request: Request):
     
     Em caso de falha do Redis:
     - Logs detalhados são gerados
-    - Requisições são permitidas com warning
+    - Em produção: retorna 503
+    - Em desenvolvimento: permite request com warning
     - Métricas de falha são registradas para monitoramento
     
     Args:
         request: Request do FastAPI
         
     Raises:
-        HTTPException: Se o limite de requisições for excedido
+        HTTPException: Se o limite de requisições for excedido ou serviço indisponível
     """
     try:
+        redis_manager = RedisManager()
+        redis_client = redis_manager.get_client()
+        
         if redis_client is None:
-            # Tentar reconectar ao Redis
-            global redis_client
-            redis_client = get_redis_client()
-            if redis_client is None:
-                logger.error("Redis indisponível - Rate limiting degradado")
-                # Permitir request mas registrar warning
-                request.state.rate_limit_degraded = True
-                return
+            logger.error("Redis indisponível - Rate limiting degradado")
+            request.state.rate_limit_degraded = True
+            
+            if settings.ENVIRONMENT == "production":
+                raise HTTPException(
+                    status_code=503,
+                    detail="Rate limiting service unavailable"
+                )
+            return
 
         # Obter IP do cliente
         client_ip = get_remote_address(request)
@@ -114,9 +152,8 @@ async def rate_limiter(request: Request):
             
     except redis.RedisError as e:
         logger.error(f"Erro no Redis durante rate limiting: {e}")
-        # Registrar métrica de falha para monitoramento
         request.state.rate_limit_error = str(e)
-        # Em ambiente de produção, podemos optar por uma política mais restritiva
+        
         if settings.ENVIRONMENT == "production":
             raise HTTPException(
                 status_code=503,
