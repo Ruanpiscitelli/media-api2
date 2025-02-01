@@ -167,33 +167,9 @@ async def create_template(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
         
-@router.get("", response_model=TemplateListResponse)
-async def list_templates(
-    category: Optional[str] = None,
-    tags: Optional[List[str]] = Query(None),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100)
-):
-    """
-    Lista templates disponíveis.
-    """
-    try:
-        templates = template_manager.list_templates(
-            category=category,
-            tags=tags,
-            page=page,
-            page_size=page_size
-        )
-        
-        return TemplateListResponse(
-            templates=templates,
-            total=len(templates),
-            page=page,
-            page_size=page_size
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/")
+async def list_templates(current_user = Depends(get_current_user)):
+    return {"templates": []}
         
 @router.get("/{name}", response_model=TemplateDefinition)
 async def get_template(
