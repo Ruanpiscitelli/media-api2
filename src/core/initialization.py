@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from src.core.config import settings
 from src.core.db.init_db import init_db
-from src.core.redis_client import create_redis_pool
+from src.core.redis_client import init_redis_pool
 from src.core.monitoring import setup_monitoring
 from fastapi import FastAPI
 from src.core.rate_limit import rate_limiter
@@ -69,7 +69,7 @@ async def initialize_api(app: FastAPI):
         limiter.total_tokens = settings.MAX_THREADS  # Definido no config.py
         
         # Inicializar Redis primeiro
-        redis_pool = await create_redis_pool()
+        redis_pool = await init_redis_pool()
         app.state.redis = redis_pool
         
         # Inicializar rate limiter após Redis

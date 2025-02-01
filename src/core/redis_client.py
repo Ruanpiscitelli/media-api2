@@ -8,6 +8,7 @@ import logging
 import asyncio
 from prometheus_client import Counter, Gauge
 from functools import wraps
+import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +143,15 @@ async def check_redis_health() -> bool:
     except Exception as e:
         logger.error(f"Verificação de saúde Redis falhou: {e}")
         return False
+
+# Deprecation warning
+def create_redis_pool(*args, **kwargs):
+    """
+    @deprecated: Use init_redis_pool instead
+    """
+    warnings.warn(
+        "create_redis_pool is deprecated, use init_redis_pool instead",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return init_redis_pool(*args, **kwargs)
