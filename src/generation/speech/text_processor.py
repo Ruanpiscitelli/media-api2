@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import phonemizer
+from phonemizer.backend import EspeakBackend
+from phonemizer.separator import Separator
 from num2words import num2words
 
 logger = logging.getLogger(__name__)
@@ -112,12 +114,27 @@ class TextProcessor:
             logger.error(f"Erro carregando detector de idioma: {e}")
             raise
             
-    def _load_phonemizer(self) -> phonemizer.Phonemizer:
-        """Carrega o fonemizador."""
+    def _load_phonemizer(self) -> EspeakBackend:
+        """
+        Carrega e configura o phonemizer.
+        
+        Returns:
+            EspeakBackend: Backend configurado do phonemizer
+        """
         try:
-            return phonemizer.Phonemizer()
+            # Configurar backend do phonemizer
+            return EspeakBackend(
+                language="pt-BR",
+                preserve_punctuation=True,
+                with_stress=True,
+                separator=Separator(
+                    word=' ',
+                    syllable='-',
+                    phone='|'
+                )
+            )
         except Exception as e:
-            logger.error(f"Erro carregando fonemizador: {e}")
+            logger.error(f"Erro ao carregar phonemizer: {e}")
             raise
             
     def process_text(self, text: str, language: Optional[str] = None) -> Dict:
@@ -196,10 +213,10 @@ class TextProcessor:
         """Converte tokens em fonemas."""
         try:
             text = " ".join(tokens)
-            phonemes = self.phonemizer.phonemize(
+            phonemes = phonemizer.phonemize(
                 text,
-                language=language[:2],  # Usa apenas código principal do idioma
-                backend="espeak"
+                backend=self.phonemizer,
+                strip=True
             )
             return phonemes.split()
         except Exception as e:
