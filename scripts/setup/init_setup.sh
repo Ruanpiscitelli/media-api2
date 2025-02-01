@@ -152,6 +152,10 @@ python3 -m venv $WORKSPACE/venv_clean
 echo -e "${BLUE}5. Instalando dependências Python...${NC}"
 pip install --upgrade pip wheel setuptools || { echo "❌ Falha na instalação de pip"; exit 1; }
 
+# Adicionar após o upgrade do pip
+pip install ninja==1.11.1.1  # Necessário para compilação CUDA
+pip install nvidia-ml-py==12.535.133  # Bindings Python para nvidia-smi
+
 # Adicionar após cada bloco de instalação:
 if [ $? -ne 0 ]; then
     echo "❌ Falha na instalação de dependências"
@@ -159,7 +163,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Instalar dependências críticas primeiro
-pip install slowapi fastapi uvicorn redis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
+pip install slowapi fastapi uvicorn redis aioredis itsdangerous starlette semver PyYAML gradio colorama python-slugify typing-extensions pydantic-settings
 
 # Depois as dependências de mídia
 pip install --no-cache-dir \
@@ -227,6 +231,15 @@ except ImportError as e:
     print(f"❌ Erro ao importar dependências: {e}")
     sys.exit(1)
 EOF
+
+# Adicionar após a instalação do torch
+pip install transformers==4.35.2
+
+# Necessário para distribuição de modelos entre GPUs
+pip install accelerate==0.25.0
+
+# Adicionar na seção de dependências CUDA
+pip install triton==2.1.0
 
 echo -e "${BLUE}6. Iniciando serviços...${NC}"
 cd $API_DIR
