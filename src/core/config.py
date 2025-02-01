@@ -183,6 +183,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = None
     REDIS_SSL: bool = Field(default=False)
     REDIS_TIMEOUT: int = Field(default=5)
+    REDIS_URL: str = "redis://localhost:6379/0"  # ou use uma variável de ambiente
     
     # Rate Limiting
     RATE_LIMIT_DEFAULT: int = Field(default=100)  # requisições por hora
