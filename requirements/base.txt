@@ -13,15 +13,20 @@ Pillow>=10.0.0
 opencv-python-headless>=4.8.0  # Versão sem GUI, melhor para servidores
 numpy>=1.24.3
 
-# Processamento de texto
+# Processamento de texto e ML
 freetype-py>=2.3.0
 PyICU>=2.12.0
-transformers>=4.33.2
+transformers[torch]>=4.33.2
+tokenizers>=0.14.0
+sentencepiece>=0.1.99
+sacremoses>=0.0.53
+phonemizer>=3.2.1
+num2words>=0.5.12
+accelerate>=0.23.0
+safetensors>=0.4.0
 
-# Processamento de vídeo
+# Processamento de vídeo e áudio
 moviepy>=1.0.3
-numpy>=1.24.0
-yt-dlp>=2023.11.16
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
 soundfile>=0.12.1
@@ -30,15 +35,22 @@ torchaudio>=2.1.0
 # GPU e otimização
 torch>=2.1.0
 torchvision>=0.16.0
+einops>=0.6.1
+pytorch-lightning>=2.0.9
 
 # Cache e armazenamento
 redis>=4.5.0
+aioredis>=2.0.0
 sqlalchemy>=2.0.20
 alembic>=1.12.0
 asyncpg>=0.28.0
+aiosqlite>=0.19.0
 
-# Monitoramento
+# Monitoramento e telemetria
 prometheus-client>=0.17.1
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.41b0
 python-logging-loki>=0.3.1
 statsd>=3.3.0
 sentry-sdk[fastapi]>=1.28.1
@@ -51,43 +63,26 @@ python-dotenv>=1.0.0
 pyyaml>=6.0.1
 tenacity>=8.2.3
 structlog>=23.1.0
-
-# Clientes HTTP
-aiohttp>=3.9.1
-httpx>=0.24.0
-websockets>=11.0.3
-aiohttp[speedups]
-
-# Processamento de mídia
-torch>=2.1.0
-torchvision>=0.16.0
-torchaudio>=2.1.0
-numpy>=1.24.3
-pillow>=10.0.1
-ffmpeg-python>=0.2.0
-
-# Processamento de mídia
-einops>=0.6.1
-pytorch-lightning>=2.0.9
-aiofiles>=23.2.1
-tqdm>=4.66.1
 psutil>=5.9.5
 scipy>=1.11.3
-taesd>=0.0.2  # Para previews rápidos
-folder-paths>=0.1.0  # Para gerenciamento de modelos
+
+# Clientes HTTP e WebSocket
+aiohttp[speedups]>=3.9.1
+httpx>=0.24.0
+websockets>=11.0.3
+
+# Processamento assíncrono
+celery>=5.3.4
+uvloop>=0.17.0
+aiofiles>=23.2.1
+
+# Gerenciamento de versões e compatibilidade
+semver>=3.0.0
+folder-paths>=0.1.0
 
 # Dependências de desenvolvimento
 pytest>=7.4.2
 pytest-asyncio>=0.21.1
 black>=23.9.1
 flake8>=6.1.0
-mypy>=1.5.1
-
-# Dependências de cache/queue
-celery>=5.3.4
-aiosqlite>=0.19.0
-semver>=3.0.0
-
-# Atualizar/adicionar versões específicas
-aioredis>=2.0.0
-uvloop>=0.17.0 
+mypy>=1.5.1 
