@@ -141,17 +141,17 @@ app.add_middleware(
     https_only=True   # Cookies apenas via HTTPS
 )
 
-# Middleware de rate limiting
+# Middleware de rate limit
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     try:
         if not getattr(request.state, "skip_rate_limit", False):
-            await rate_limiter.is_rate_limited(request)
+            await rate_limiter(request)
         return await call_next(request)
     except HTTPException as e:
         if e.status_code == 429:
             return JSONResponse(
-                status_code=429, 
+                status_code=429,
                 content={"detail": e.detail}
             )
         raise

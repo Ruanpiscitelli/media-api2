@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     GPU_METRICS_PREFIX: str = os.getenv("GPU_METRICS_PREFIX", "gpu")
     GPU_POLL_INTERVAL: int = int(os.getenv("GPU_POLL_INTERVAL", "5"))
     
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "3600"))  # em segundos
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

@@ -2,7 +2,7 @@
 Endpoints para geração e manipulação de imagens.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, BackgroundTasks, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from src.core.auth import get_current_user
@@ -58,26 +58,14 @@ class ImageResponse(BaseModel):
     images: List[str]
     metadata: Dict
 
-@router.post("/generate", response_model=ImageResponse)
+@router.post("/generate")
 async def generate_image(
-    request: ImageGenerationRequest,
-    background_tasks: BackgroundTasks,
-    current_user: Dict = Depends(get_current_user),
-    rate_limit: Dict = Depends(rate_limiter),
-    service: ImageService = Depends(get_image_service)
-) -> Dict:
+    request: Request,
+    image_request: ImageGenerationRequest,
+    _: bool = Depends(rate_limiter)  # Usa rate_limiter como dependência
+):
     """
-    Gera uma imagem usando SDXL de forma assíncrona com gerenciamento de recursos.
-    
-    Args:
-        request: Parâmetros da geração de imagem
-        background_tasks: Gerenciador de tarefas em background
-        current_user: Usuário autenticado
-        rate_limit: Limitador de taxa de requisições
-        service: Serviço de geração de imagens
-    
-    Returns:
-        Dict com status da tarefa e ID para acompanhamento
+    Gera uma imagem usando o modelo especificado
     """
     try:
         # Verificar se modelo SDXL está disponível
@@ -113,18 +101,20 @@ async def generate_image(
         # Cria tarefa na fila
         task_id = await queue_manager.enqueue_task(
             task_type="image_generation",
-            params=request.dict(),
+            params=image_request.dict(),
             gpu_id=gpu.id,
-            user_id=current_user["id"],
+            user_id=request.user.id,
             priority=1
         )
 
         # Inicia processamento em background
+        service = await get_image_service()
+        background_tasks = BackgroundTasks()
         background_tasks.add_task(
             service.generate,
             task_id=task_id,
             gpu_id=gpu.id,
-            request=request
+            request=image_request
         )
         
         return {
@@ -142,7 +132,7 @@ async def generate_image(
         }
         
     except Exception as e:
-        logger.error(f"Erro na geração de imagem: {e}")
+        logger.error(f"Erro gerando imagem: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch", response_model=List[ImageResponse])
