@@ -173,8 +173,8 @@ async def upscale_image(
 
 @router.post("/process")
 async def process_image(
-    image: UploadFile = File(...),
     operations: List[Dict],
+    image: UploadFile = File(...),
     current_user: Dict = Depends(get_current_user)
 ) -> Dict:
     """
