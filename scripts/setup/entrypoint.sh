@@ -187,9 +187,9 @@ done
 cd /workspace/media-api2
 
 # Criar arquivo .env se não existir
-if [ ! -f .env.development ]; then
+if [ ! -f .env ]; then
     echo "Criando arquivo .env..."
-    cat > .env.development << EOF
+    cat > .env << EOF
 DEBUG=true
 ENVIRONMENT=development
 SECRET_KEY=your-secret-key-here
@@ -197,7 +197,7 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=development_password
 REDIS_DB=0
-BACKEND_CORS_ORIGINS=["*"]
+BACKEND_CORS_ORIGINS='["*"]'
 LOG_LEVEL=debug
 PROJECT_NAME="Media API"
 VERSION="2.0.0"
@@ -220,13 +220,6 @@ MAX_VIDEO_SIZE=100000000
 RENDER_TIMEOUT_SECONDS=300
 EOF
 fi
-
-# Criar link simbólico para .env atual
-ln -sf .env.development .env
-
-# Criar diretório de logs se não existir
-mkdir -p /workspace/logs
-touch /workspace/logs/{api,redis,prometheus,grafana}.log
 
 # Verificar se o ambiente virtual está ativado
 if [ -z "$VIRTUAL_ENV" ]; then

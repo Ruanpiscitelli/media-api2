@@ -12,83 +12,45 @@ from functools import lru_cache
 class EnvironmentSettings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-
-    class Config:
-        env_file = ".env"
-
-class Settings(BaseSettings):
-    # Básico
-    PROJECT_NAME: str = "Media API"
-    VERSION: str = "2.0.0"
-    API_V2_STR: str = "/api/v2"
-    
-    # Ambiente
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
-    
-    # Segurança
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "development_key")
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", 
-        "sqlite:///./sql_app.db"
-    )
-    
-    # Redis
+    SECRET_KEY: str = "development_key"
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    
-    # Cors
-    BACKEND_CORS_ORIGINS: list = ["*"]
-    
-    # Logging
-    LOG_LEVEL: str = "INFO"
-    
-    # Diretórios
-    BASE_DIR: Path = Path(__file__).parent.parent.parent
-    TEMP_DIR: Path = Path("/workspace/temp")
-    SUNO_OUTPUT_DIR: Path = Path("/workspace/outputs/suno")
-    SUNO_CACHE_DIR: Path = Path("/workspace/cache/suno")
-    SHORTS_OUTPUT_DIR: Path = Path("/workspace/outputs/shorts")
-    SHORTS_CACHE_DIR: Path = Path("/workspace/cache/shorts")
-    SHORTS_UPLOAD_DIR: Path = Path("/workspace/uploads/shorts")
-    
-    # Redis
-    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
-    REDIS_TIMEOUT: int = int(os.getenv("REDIS_TIMEOUT", "5"))  # segundos
-    REDIS_SSL: bool = os.getenv("REDIS_SSL", "false").lower() == "true"
-    
-    # Limites e Timeouts
-    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
-    MEMORY_THRESHOLD_MB: int = int(os.getenv("MEMORY_THRESHOLD_MB", "8192"))
-    TEMP_FILE_MAX_AGE: int = int(os.getenv("TEMP_FILE_MAX_AGE", "3600"))
-    
-    # ComfyUI
-    COMFY_API_URL: str = os.getenv("COMFY_API_URL", "http://localhost:8188/api")
-    COMFY_WS_URL: str = os.getenv("COMFY_WS_URL", "ws://localhost:8188/ws")
-    COMFY_TIMEOUT: int = int(os.getenv("COMFY_TIMEOUT", "30"))
-    
-    # Adicionar novas configurações de renderização
+    BACKEND_CORS_ORIGINS: str = '["*"]'
+    LOG_LEVEL: str = "debug"
+    PROJECT_NAME: str = "Media API"
+    VERSION: str = "2.0.0"
+    API_V2_STR: str = "/api/v2"
+    DATABASE_URL: str = "sqlite:///./sql_app.db"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REDIS_TIMEOUT: int = 5
+    REDIS_SSL: bool = False
+    RATE_LIMIT_PER_MINUTE: int = 60
+    MEMORY_THRESHOLD_MB: int = 8192
+    TEMP_FILE_MAX_AGE: int = 3600
+    COMFY_API_URL: str = "http://localhost:8188/api"
+    COMFY_WS_URL: str = "ws://localhost:8188/ws"
+    COMFY_TIMEOUT: int = 30
     MAX_CONCURRENT_RENDERS: int = 4
-    MAX_RENDER_TIME: int = 300  # segundos
-    MAX_VIDEO_LENGTH: int = 300  # segundos
-    MAX_VIDEO_SIZE: int = 100_000_000  # 100MB
+    MAX_RENDER_TIME: int = 300
+    MAX_VIDEO_LENGTH: int = 300
+    MAX_VIDEO_SIZE: int = 100000000
+    RENDER_TIMEOUT_SECONDS: int = 300
 
-    # Adicionar timeout de renderização
-    RENDER_TIMEOUT_SECONDS: int = 300  # 5 minutos
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+        extra = "allow"
 
-    # Adicionar configurações de imagem
-    IMAGE_OUTPUT_DIR: Path = Path("/workspace/outputs/images")
-    IMAGE_CACHE_DIR: Path = Path("/workspace/cache/images")
-    IMAGE_UPLOAD_DIR: Path = Path("/workspace/uploads/images")
-    
-    # Configurações de modelo de imagem
-    IMAGE_MODEL_PATH: Optional[str] = None
-    IMAGE_MODEL_DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
+class Settings(BaseSettings):
+    env_settings: EnvironmentSettings
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        env = EnvironmentSettings()
+        for field in env.__fields__:
+            setattr(self, field, getattr(env, field))
 
     def check_config(self):
         """Valida configurações essenciais"""
@@ -121,12 +83,6 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    env = EnvironmentSettings()
-    return Settings(
-        ENVIRONMENT=env.ENVIRONMENT,
-        DEBUG=env.DEBUG,
-        _env_file=f".env.{env.ENVIRONMENT}",
-        _env_file_encoding="utf-8"
-    )
+    return Settings()
 
 settings = get_settings()
