@@ -32,7 +32,7 @@ torch>=2.1.0
 torchvision>=0.16.0
 
 # Cache e armazenamento
-redis>=5.0.1
+redis>=4.5.0
 sqlalchemy>=2.0.20
 alembic>=1.12.0
 asyncpg>=0.28.0
@@ -60,7 +60,7 @@ xformers>=0.0.22
 
 # Clientes HTTP
 aiohttp>=3.9.1
-httpx>=0.24.1
+httpx>=0.24.0
 websockets>=11.0.3
 aiohttp[speedups]
 
@@ -92,4 +92,8 @@ mypy>=1.5.1
 # Dependências de cache/queue
 celery>=5.3.4
 aiosqlite>=0.19.0
-semver>=3.0.0 
+semver>=3.0.0
+
+# Atualizar/adicionar versões específicas
+aioredis>=2.0.0
+uvloop>=0.17.0 

@@ -12,16 +12,18 @@ from fastapi import FastAPI
 from src.core.rate_limit import rate_limiter
 import os
 import anyio
+from src.core.cache_manager import cache_manager
 
 logger = logging.getLogger(__name__)
 
 async def init_redis():
     """Inicializa conexão com Redis"""
     try:
-        redis = await create_redis_pool()
-        await redis.ping()
+        # Usar o novo sistema de cache
+        await cache_manager.ensure_connection()
         logger.info("Redis inicializado com sucesso")
-        return redis
+        # Retornar a conexão do cache_manager
+        return cache_manager.get_connection()
     except Exception as e:
         logger.error(f"Erro inicializando Redis: {e}")
         raise

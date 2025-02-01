@@ -125,24 +125,17 @@ appendfilename "appendonly.aof"
 appendfsync everysec
 EOF
 
-# Iniciar Redis
-log "Iniciando Redis..."
-redis-server /etc/redis/redis.conf
-
 # Verificar Redis
-log "Verificando Redis..."
-for i in {1..5}; do
-    if redis-cli ping > /dev/null 2>&1; then
-        log "Redis conectado"
-        break
-    fi
-    if [ $i -eq 5 ]; then
-        error "Falha ao conectar ao Redis"
+echo "Verificando Redis..."
+redis-cli ping || {
+    echo "Iniciando Redis..."
+    service redis-server start
+    sleep 2
+    redis-cli ping || {
+        echo "Erro: Redis não está respondendo"
         exit 1
-    fi
-    warn "Tentativa $i/5 - Aguardando Redis..."
-    sleep 1
-done
+    }
+}
 
 # Verificar ambiente virtual
 if [ ! -d "$VENV_DIR" ]; then

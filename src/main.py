@@ -26,6 +26,9 @@ from src.core.checks import run_system_checks
 from src.core.monitoring import REQUEST_COUNT, REQUEST_LATENCY
 from src.core.redis_client import close_redis_pool, init_redis_pool
 from src.core.middleware.connection import ConnectionMiddleware
+from src.core.initialization import cache_manager
+from src.services.image import get_image_service
+from src.services.video import get_video_service
 
 # Routers
 from src.api.v2.endpoints import (
@@ -200,7 +203,16 @@ async def startup_event():
         # Executar verificações do sistema
         run_system_checks()
         logger.info("✅ Verificações do sistema concluídas")
-
+        
+        # Inicializar cache
+        await cache_manager.ensure_connection()
+        logger.info("✅ Cache inicializado")
+        
+        # Inicializar serviços
+        await get_image_service()
+        await get_video_service()
+        logger.info("✅ Serviços inicializados")
+        
         # Inicializar ComfyUI
         comfy = await get_comfy_server()
         if not await comfy.verify_connection():

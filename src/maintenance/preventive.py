@@ -18,6 +18,7 @@ from src.core.config import settings
 from src.core.cache.manager import cache_manager
 from src.core.gpu.manager import GPUManager
 from src.monitoring.alert_system import AlertSystem
+from src.core.redis_client import get_redis
 
 # Configuração de logging
 logger = logging.getLogger(__name__)
@@ -59,11 +60,7 @@ class PreventiveMaintenance:
         self.gpu_manager = gpu_manager
         self.alert_system = alert_system
         self.scheduler = AsyncIOScheduler()
-        
-        # Cache Redis
-        self.cache = cache_manager.get_cache('maintenance')
-        
-        # Estado do sistema
+        self.cache = None  # Será inicializado depois
         self._is_running = False
         self._current_task: Optional[str] = None
         
@@ -87,20 +84,19 @@ class PreventiveMaintenance:
             }
         }
     
+    async def initialize(self):
+        """Inicializa recursos assíncronos"""
+        self.cache = await cache_manager.get_cache('maintenance')
+    
     async def start(self):
-        """
-        Inicia o sistema de manutenção.
-        """
+        """Inicia o sistema de manutenção."""
         if self._is_running:
             return
             
         try:
-            # Configura tarefas
+            await self.initialize()
             self._setup_tasks()
-            
-            # Inicia scheduler
             self.scheduler.start()
-            
             self._is_running = True
             logger.info("Sistema de manutenção iniciado")
             
@@ -304,11 +300,22 @@ class PreventiveMaintenance:
             self._current_task = None
     
     async def _clean_redis_cache(self):
-        """
-        Limpa entradas antigas do Redis.
-        """
-        # TODO: Implementar limpeza do Redis
-        pass
+        """Limpa entradas antigas do Redis."""
+        try:
+            redis = await get_redis()
+            
+            # Obter todas as chaves
+            keys = await redis.keys("*")
+            
+            # Verificar e limpar chaves expiradas
+            for key in keys:
+                ttl = await redis.ttl(key)
+                if ttl < 0:  # Chave sem TTL ou expirada
+                    await redis.delete(key)
+                    logger.info(f"Chave Redis removida: {key}")
+                
+        except Exception as e:
+            logger.error(f"Erro limpando cache Redis: {e}")
     
     async def _clean_file_cache(self):
         """

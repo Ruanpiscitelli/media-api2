@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 from src.core.auth import get_current_user
 from src.core.rate_limit import rate_limiter
-from src.services.image import ImageService
+from src.services.image import get_image_service, ImageService
 from src.core.gpu_manager import gpu_manager
 from src.core.queue_manager import queue_manager
 import logging
@@ -20,7 +20,6 @@ import gc
 
 router = APIRouter(tags=["images"])
 logger = logging.getLogger(__name__)
-image_service = ImageService()
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -64,7 +63,8 @@ async def generate_image(
     request: ImageGenerationRequest,
     background_tasks: BackgroundTasks,
     current_user: Dict = Depends(get_current_user),
-    rate_limit: Dict = Depends(rate_limiter)
+    rate_limit: Dict = Depends(rate_limiter),
+    service: ImageService = Depends(get_image_service)
 ) -> Dict:
     """
     Gera uma imagem usando SDXL de forma assíncrona com gerenciamento de recursos.
@@ -74,6 +74,7 @@ async def generate_image(
         background_tasks: Gerenciador de tarefas em background
         current_user: Usuário autenticado
         rate_limit: Limitador de taxa de requisições
+        service: Serviço de geração de imagens
     
     Returns:
         Dict com status da tarefa e ID para acompanhamento
@@ -120,9 +121,10 @@ async def generate_image(
 
         # Inicia processamento em background
         background_tasks.add_task(
-            gpu_manager.process_task,
+            service.generate,
             task_id=task_id,
-            gpu_id=gpu.id
+            gpu_id=gpu.id,
+            request=request
         )
         
         return {
@@ -153,8 +155,9 @@ async def generate_batch(
     """Gera múltiplas imagens em batch"""
     try:
         results = []
+        service = await get_image_service()
         for request in requests:
-            result = await image_service.generate_batch(
+            result = await service.generate_batch(
                 request.dict(),
                 user_id=current_user.id
             )
@@ -176,18 +179,14 @@ async def upscale_image(
     Aumenta a resolução de uma imagem.
     """
     try:
-        # Salva o arquivo enviado
         image_path = await save_upload_file(image)
-        
-        # Processa a imagem
-        result = await image_service.upscale(
+        service = await get_image_service()
+        result = await service.upscale(
             image_path=str(image_path),
             scale=scale
         )
         
-        # Remove o arquivo temporário
         os.unlink(image_path)
-        
         return result
         
     except Exception as e:
@@ -204,18 +203,14 @@ async def process_image(
     Aplica operações em uma imagem.
     """
     try:
-        # Salva o arquivo enviado
         image_path = await save_upload_file(image)
-        
-        # Processa a imagem
-        result = await image_service.process_image(
+        service = await get_image_service()
+        result = await service.process_image(
             image_path=str(image_path),
             operations=operations
         )
         
-        # Remove o arquivo temporário
         os.unlink(image_path)
-        
         return result
         
     except Exception as e:
@@ -228,7 +223,8 @@ async def list_styles(
 ):
     """Lista estilos disponíveis"""
     try:
-        styles = await image_service.list_styles()
+        service = await get_image_service()
+        styles = await service.list_styles()
         return {"styles": styles}
         
     except Exception as e:
@@ -241,7 +237,8 @@ async def list_loras(
 ):
     """Lista LoRAs disponíveis"""
     try:
-        loras = await image_service.list_loras()
+        service = await get_image_service()
+        loras = await service.list_loras()
         return {"loras": loras}
         
     except Exception as e:
@@ -258,7 +255,8 @@ async def enhance_image(
 ):
     """Melhora uma imagem (redução de ruído, aumento de nitidez, etc)"""
     try:
-        result = await image_service.enhance(
+        service = await get_image_service()
+        result = await service.enhance(
             image=await image.read(),
             enhancement_type=enhancement_type,
             strength=strength,

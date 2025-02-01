@@ -64,5 +64,16 @@ COPY --chown=appuser:appuser . .
 # Instalar PyTorch com versão noturna se necessário
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/nightly/cu121
 
+# Adicionar Redis
+RUN apt-get update && apt-get install -y \
+    redis-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar configuração do Redis
+COPY config/redis.conf /etc/redis/redis.conf
+
+# Garantir que o Redis inicie
+CMD ["bash", "-c", "service redis-server start && uvicorn src.main:app --host 0.0.0.0 --port 8000"]
+
 # Script de entrada
 ENTRYPOINT ["./scripts/setup/entrypoint.sh"] 

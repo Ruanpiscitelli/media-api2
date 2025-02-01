@@ -9,6 +9,8 @@ from prometheus_client import Counter, Histogram
 
 from src.core.config import settings
 from src.core.gpu.manager import gpu_manager
+from src.core.initialization import cache_manager
+from src.core.logger import logger
 
 # Métricas Prometheus
 TASK_COUNTER = Counter(
@@ -57,10 +59,30 @@ app.conf.task_routes = {
 }
 
 @worker_ready.connect
-def setup_worker(sender, **kwargs):
-    """Configura o worker quando ele inicia."""
-    # Inicializa monitoramento de GPU
-    sender.app.control.broadcast("monitor_gpus")
+def init_worker(sender=None, **kwargs):
+    """Inicializa recursos quando o worker inicia"""
+    try:
+        # Inicializa monitoramento de GPU
+        sender.app.control.broadcast("monitor_gpus")
+        
+        # Obtem ou cria um novo event loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        # Executa inicialização assíncrona
+        loop.run_until_complete(async_init_worker())
+        logger.info("Worker inicializado com sucesso")
+    except Exception as e:
+        logger.error(f"Erro inicializando worker: {e}")
+        raise
+
+async def async_init_worker():
+    """Função assíncrona real de inicialização"""
+    await cache_manager.ensure_connection()
+    await gpu_manager.initialize()
 
 # Importa tarefas
 import src.generation.image.tasks

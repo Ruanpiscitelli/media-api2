@@ -124,6 +124,15 @@ async def generic_exception_handler(request, exc):
         }
     )
 
+@app.exception_handler(ConnectionError)
+async def redis_connection_error(request: Request, exc: ConnectionError):
+    """Trata erros de conexão com Redis"""
+    logger.error(f"Erro de conexão com Redis: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Serviço temporariamente indisponível"}
+    )
+
 # Rota de healthcheck
 @app.get("/health")
 async def health_check():
@@ -179,6 +188,20 @@ async def handle_legacy_image_routes(request: Request, call_next):
         new_path = request.url.path.replace("/v2/image/", "/v2/images/", 1)
         return RedirectResponse(url=new_path, status_code=308)
     return await call_next(request)
+
+@app.middleware("http")
+async def check_redis_health(request: Request, call_next):
+    """Verifica saúde do Redis antes de cada requisição"""
+    try:
+        redis = await get_redis()
+        await redis.ping()
+        return await call_next(request)
+    except Exception as e:
+        logger.error(f"Redis não está saudável: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Serviço temporariamente indisponível"}
+        )
 
 if __name__ == "__main__":
     import uvicorn

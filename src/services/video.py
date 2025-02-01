@@ -16,6 +16,7 @@ from src.generation.video.compositor import VideoCompositor
 from src.generation.speech.pipeline import SpeechPipeline
 from src.core.cache.manager import cache_manager
 from src.utils.video import VideoProcessor
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,18 @@ class VideoService:
         self.compositor = VideoCompositor()
         self.speech_pipeline = SpeechPipeline()
         self.processor = VideoProcessor()
+        self.cache = None
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+    @classmethod
+    async def create(cls) -> 'VideoService':
+        service = cls()
+        await service.initialize()
+        return service
+        
+    async def initialize(self):
+        self.cache = await cache_manager.get_cache('videos')
+        # ... resto da inicialização ...
         
     async def validate_project(self, scenes: List[Dict]) -> Dict:
         """
@@ -351,6 +364,7 @@ class VideoService:
             logger.error(f"Erro gerando preview: {e}")
             raise
 
+    @staticmethod
     async def validate_ffmpeg_capabilities():
         """Valida recursos do FFmpeg antes de processar"""
         try:
@@ -375,3 +389,12 @@ class VideoService:
             
         except Exception as e:
             raise RuntimeError(f"Erro validando FFmpeg: {e}") 
+
+# Singleton pattern
+video_service: Optional[VideoService] = None
+
+async def get_video_service() -> VideoService:
+    global video_service
+    if video_service is None:
+        video_service = await VideoService.create()
+    return video_service 
